@@ -31,7 +31,7 @@ can see exactly which screen each button acts on and why.
 ## Web demo
 
 Try the rules parser and compiler in your browser, no install required:
-**https://<owner>.github.io/pm5keys/**
+**https://ebowman.github.io/pm5keys/**
 
 It runs entirely client-side via [Pyodide](https://pyodide.org/) (Python
 compiled to WebAssembly) — rules only, no LLM in the browser, and no
@@ -45,20 +45,20 @@ Not yet on PyPI (pending release) — until then, install straight from
 the repo:
 
 ```
-pip install git+https://github.com/ericbowman/pm5keys.git
+pip install git+https://github.com/ebowman/pm5keys.git
 ```
 
 or with `pipx`, if you want `pm5keys` on your `PATH` without touching
 any project's virtualenv:
 
 ```
-pipx install git+https://github.com/ericbowman/pm5keys.git
+pipx install git+https://github.com/ebowman/pm5keys.git
 ```
 
 From source, for development:
 
 ```
-git clone https://github.com/ericbowman/pm5keys.git
+git clone https://github.com/ebowman/pm5keys.git
 cd pm5keys
 pip install -e .[dev]
 ```

@@ -3,7 +3,7 @@
 ## Dev setup
 
 ```
-git clone https://github.com/ericbowman/pm5keys.git
+git clone https://github.com/ebowman/pm5keys.git
 cd pm5keys
 python3 -m venv .venv
 source .venv/bin/activate

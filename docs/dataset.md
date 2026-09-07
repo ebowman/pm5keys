@@ -247,7 +247,7 @@ root for the short-form version of this statement.
 
 If you are Concept2 (or represent Concept2) and want this content
 removed or handled differently, please open an issue at
-<https://github.com/ericbowman/pm5keys/issues> — that's also the
+<https://github.com/ebowman/pm5keys/issues> — that's also the
 contact point for any other question about this dataset.
 
 ## As-is

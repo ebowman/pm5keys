@@ -28,8 +28,8 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/ericbowman/pm5keys"
-Issues = "https://github.com/ericbowman/pm5keys/issues"
+Homepage = "https://github.com/ebowman/pm5keys"
+Issues = "https://github.com/ebowman/pm5keys/issues"
 
 [project.optional-dependencies]
 llm = ["anthropic>=0.40"]

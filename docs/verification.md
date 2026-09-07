@@ -484,7 +484,7 @@ pm5keys --llm none --monitor pm3 "8 x 500m, 2 minutes rest"
 
 If any row's actual monitor screen doesn't match its "Expected final
 state" description, please file an issue
-(<https://github.com/ericbowman/pm5keys/issues>) including:
+(<https://github.com/ebowman/pm5keys/issues>) including:
 
 - which workout (its number and text above)
 - the exact button sequence you pressed
