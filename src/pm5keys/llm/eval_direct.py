@@ -390,6 +390,8 @@ def write_report(
         "pipeline (pm5keys.cli) never lets the LLM emit key presses --",
         "this report exists to show the gap between that and asking it to.",
         "",
+        "RowErg only (rows with machines == BikeErg excluded).",
+        "",
         f"backend: {backend_name}, model: {model or '(default)'}, k: {k}, n rows: {n}",
         "",
         "## LLM-direct",

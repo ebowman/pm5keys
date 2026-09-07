@@ -171,6 +171,8 @@ def _write_report(rows, results, backend, model, k, per_kind, n, n_correct, out_
     lines = [
         "# pm5keys.llm.eval_extract report",
         "",
+        "RowErg only (rows with machines == BikeErg excluded).",
+        "",
         f"backend: {backend}, model: {model or '(default)'}, k: {k}, n rows: {n}",
         "",
         f"Overall accuracy: {n_correct}/{n}"

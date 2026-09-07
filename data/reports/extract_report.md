@@ -1,5 +1,7 @@
 # pm5keys.llm.eval_extract report
 
+RowErg only (rows with machines == BikeErg excluded).
+
 backend: claude-cli, model: (default), k: 25, n rows: 14
 
 Overall accuracy: 14/14 (100.0%)

@@ -314,12 +314,21 @@ class EvalExtractRunEvalTest(unittest.TestCase):
             good_spec = json.dumps(
                 {"kind": "single_distance", "work": {"distance_m": 5000}, "notes": "steady"}
             )
+            fake_extract = mock.Mock(return_value=json.loads(good_spec) | {"machine": "rower"})
 
+            # Patch the name where eval_extract.py actually looks it up:
+            # `from .extract import ... extract_spec` binds `extract_spec`
+            # directly into the eval_extract module's namespace, so
+            # patching 'pm5keys.llm.extract.extract_spec' (the source
+            # module) has no effect on eval_extract's local binding --
+            # it must be patched as `ee.extract_spec`.
             with mock.patch.object(ee, "DEFAULT_DATASET_PATH", dataset_path):
-                with mock.patch(
-                    "pm5keys.llm.extract.extract_spec", return_value=json.loads(good_spec) | {"machine": "rower"}
-                ):
+                with mock.patch.object(ee, "extract_spec", fake_extract):
                     rows, results = ee.run_eval(eval_path, None, "claude-cli", None, 5, None)
+
+            self.assertEqual(fake_extract.call_count, 1)
+            called_text = fake_extract.call_args.args[0]
+            self.assertEqual(called_text, "a steady 5k. 5000m steady.")
 
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0]["title"], "a steady 5k")

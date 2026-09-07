@@ -5,6 +5,8 @@ sequence directly, instead of a WorkoutSpec JSON object. The real
 pipeline (pm5keys.cli) never lets the LLM emit key presses --
 this report exists to show the gap between that and asking it to.
 
+RowErg only (rows with machines == BikeErg excluded).
+
 backend: claude-cli, model: (default), k: 30, n rows: 14
 
 ## LLM-direct
