@@ -10,21 +10,27 @@ the LLM extractor always forces machine='rower' internally).
 
 Pipeline:
     spec = spec.parse_spec(text, None)
-    if spec is None and not --no-llm:
-        spec = llm.extract_spec(text, model=...)
+    if spec is None and --llm != 'none':
+        spec = llm.extract_spec(text, backend=<resolved --llm backend>, model=...)
     spec['machine'] = 'rower'
     keys = compile_keys.compile(spec)
 
 The LLM fallback (pm5keys.llm) is an optional extra (`pip install
 pm5keys[llm]`) and is imported lazily, only when the rule parser fails
-and --no-llm was not given. If the llm subpackage is not installed, or
-the configured backend is unavailable, this prints an install hint and
-exits 2.
+and the LLM fallback has not been disabled. If the llm subpackage is
+not installed, or the configured backend is unavailable, this prints
+an install hint and exits 2.
 
 CLI:
-    pm5keys "<text>" [--no-llm] [--explain] [--verbose] [--model sonnet]
+    pm5keys "<text>" [--llm {auto,none,anthropic,claude-cli}] [--no-llm]
+             [--explain] [--verbose] [--model MODEL]
         With no positional argument, the workout text is read from
-        stdin. Prints exactly two lines to stdout:
+        stdin. --llm selects which backend the LLM fallback uses
+        (default: auto, which prefers the Anthropic SDK+key, then the
+        claude CLI, then disables the fallback -- see
+        pm5keys.llm.backends.resolve_backend). --no-llm is an alias for
+        --llm none. --model passes a model id/alias through to the
+        resolved backend. Prints exactly two lines to stdout:
 
             <title line>
             PM5: <keys>
@@ -43,14 +49,16 @@ CLI:
         version and exits 0.
 
 Exit codes: 0 on success. 2, with a one-line message on stderr and no
-traceback, when: the text is empty; parse_spec returns None and
---no-llm was given ('unparsed: use without --no-llm to try the LLM');
-the llm extra is not installed or its backend is unavailable when the
-LLM fallback is needed ('unparsed: rules could not parse this text;
-install pm5keys[llm] or use --llm claude-cli for free-form
-descriptions'); the LLM extractor raises ExtractError (its message is
-printed); or compile_keys.compile raises ValueError/NotImplementedError
-(its message is printed).
+traceback, when: the text is empty; parse_spec returns None and --llm
+none (or --no-llm) was given ('unparsed: use without --llm none to try
+the LLM'); the resolved backend is unavailable (e.g. NoneBackend
+because auto-detection found nothing, or the llm extra is not
+installed) when the LLM fallback is needed ('unparsed: rules could not
+parse this text; enable the LLM fallback with --llm anthropic (pip
+install pm5keys[llm] and set ANTHROPIC_API_KEY) or --llm claude-cli');
+the LLM extractor raises ExtractError (its message is printed); or
+compile_keys.compile raises ValueError/NotImplementedError (its
+message is printed).
 """
 
 from __future__ import annotations
@@ -77,16 +85,33 @@ def _normalise_title(text: str) -> str:
     return normalised[:80]
 
 
-def run(text: str, use_llm: bool = True, model: str = "sonnet", extract_fn=None) -> dict:
+_UNPARSED_NO_LLM_HINT = (
+    "unparsed: rules could not parse this text; enable the LLM fallback "
+    "with --llm anthropic (pip install pm5keys[llm] and set "
+    "ANTHROPIC_API_KEY) or --llm claude-cli"
+)
+
+
+def run(
+    text: str,
+    llm: str = "auto",
+    model: str | None = None,
+    extract_fn=None,
+) -> dict:
     """Run the full text -> spec -> keys pipeline. Returns a dict with
     keys: title, keys, spec, source ('rules' or 'llm'), explain (list
     of (press, screen, action) tuples). Raises Wod2KeysError on any
-    user-facing failure (empty input, unparsed text with LLM disabled,
-    LLM extraction failure, or compile failure) with a one-line
-    message suitable for printing to the user.
+    user-facing failure (empty input, unparsed text with the LLM
+    fallback unavailable, LLM extraction failure, or compile failure)
+    with a one-line message suitable for printing to the user.
+
+    llm selects the backend name passed to pm5keys.llm.resolve_backend
+    ('auto' (default), 'none', 'anthropic', or 'claude-cli').
 
     extract_fn, if given, replaces the LLM extractor's extract_spec
-    (for offline testing); it is called as extract_fn(text, model=model).
+    (for offline testing); it is called as extract_fn(text, model=model)
+    and extract_fn's own exceptions are treated as user-facing failures
+    (message forwarded verbatim).
     """
     if not text or not text.strip():
         raise Wod2KeysError("empty input")
@@ -95,22 +120,28 @@ def run(text: str, use_llm: bool = True, model: str = "sonnet", extract_fn=None)
     source = "rules"
 
     if spec is None:
-        if not use_llm:
-            raise Wod2KeysError("unparsed: use without --no-llm to try the LLM")
-
         if extract_fn is not None:
             fn = extract_fn
             extract_error_types = (Exception,)
         else:
             try:
-                from .llm import extract_spec as fn, ExtractError
+                from .llm import extract_spec, resolve_backend, ExtractError
+                from .llm.backends import NoneBackend
             except ImportError:
-                raise Wod2KeysError(
-                    "unparsed: rules could not parse this text; install "
-                    "pm5keys[llm] or use --llm claude-cli for free-form "
-                    "descriptions"
-                )
+                raise Wod2KeysError(_UNPARSED_NO_LLM_HINT)
+
+            try:
+                backend = resolve_backend(llm)
+            except ExtractError as exc:
+                raise Wod2KeysError(str(exc)) from exc
+
+            if isinstance(backend, NoneBackend):
+                raise Wod2KeysError(_UNPARSED_NO_LLM_HINT)
+
             extract_error_types = (ExtractError,)
+
+            def fn(t, model=model):
+                return extract_spec(t, backend=backend, model=model)
 
         try:
             spec = fn(text, model=model)
@@ -225,18 +256,30 @@ def main(argv: list | None = None) -> int:
         description="Turn a free-form RowErg workout description into PM5 button presses.",
     )
     parser.add_argument("text", nargs="?", default=None, help="workout description (else read from stdin)")
-    parser.add_argument("--no-llm", action="store_true", help="do not fall back to the LLM extractor")
+    parser.add_argument(
+        "--llm",
+        default="auto",
+        choices=["auto", "none", "anthropic", "claude-cli"],
+        help="which LLM backend to use for the fallback (default: auto)",
+    )
+    parser.add_argument(
+        "--no-llm",
+        action="store_true",
+        help="alias for --llm none (do not fall back to the LLM extractor)",
+    )
     parser.add_argument("--explain", action="store_true", help="print a per-press explanation")
     parser.add_argument("--verbose", action="store_true", help="print spec JSON and source to stderr")
-    parser.add_argument("--model", default="sonnet", help="LLM model to use (default: sonnet)")
+    parser.add_argument("--model", default=None, help="LLM model id/alias to use")
     parser.add_argument("--version", action="version", version=f"pm5keys {__version__}")
 
     args = parser.parse_args(argv)
 
+    llm = "none" if args.no_llm else args.llm
+
     text = args.text if args.text is not None else _read_stdin_text()
 
     try:
-        result = run(text, use_llm=not args.no_llm, model=args.model)
+        result = run(text, llm=llm, model=args.model)
     except Wod2KeysError as exc:
         print(str(exc), file=sys.stderr)
         return 2

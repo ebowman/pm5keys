@@ -6,10 +6,23 @@
 
 import io
 import json
+import os
 import unittest
 from unittest import mock
 
 from pm5keys import cli
+
+
+def _no_backend_env():
+    """Return an environment mapping guaranteed to make
+    pm5keys.llm.resolve_backend('auto') fall through to NoneBackend:
+    no ANTHROPIC_API_KEY, no PM5KEYS_CLAUDE_BIN, and a PATH that can't
+    resolve a 'claude' binary."""
+    env = dict(os.environ)
+    env.pop("ANTHROPIC_API_KEY", None)
+    env.pop("PM5KEYS_CLAUDE_BIN", None)
+    env["PATH"] = "/nonexistent-bin-dir"
+    return env
 
 
 ANCHORS = [
@@ -35,12 +48,12 @@ class RunRulePathTest(unittest.TestCase):
     def test_anchors_via_rules(self):
         for text, gold_keys in ANCHORS:
             with self.subTest(text=text):
-                result = cli.run(text, use_llm=False)
+                result = cli.run(text, llm="none")
                 self.assertEqual(result["keys"], gold_keys)
                 self.assertEqual(result["source"], "rules")
 
     def test_no_llm_flag_never_calls_extractor(self):
-        # If the rule parser handles it, use_llm=False must still work
+        # If the rule parser handles it, llm='none' must still work
         # (the extractor is simply never invoked).
         called = []
 
@@ -49,7 +62,7 @@ class RunRulePathTest(unittest.TestCase):
             raise AssertionError("extract_fn should not be called on the rule path")
 
         text, gold_keys = ANCHORS[0]
-        result = cli.run(text, use_llm=False, extract_fn=fake_extract)
+        result = cli.run(text, llm="none", extract_fn=fake_extract)
         self.assertEqual(result["keys"], gold_keys)
         self.assertEqual(called, [])
 
@@ -71,7 +84,7 @@ class RunLlmFallbackTest(unittest.TestCase):
             calls.append((t, model))
             return fake_spec
 
-        result = cli.run(text, use_llm=True, model="sonnet", extract_fn=fake_extract)
+        result = cli.run(text, llm="auto", model="sonnet", extract_fn=fake_extract)
         self.assertEqual(result["source"], "llm")
         self.assertEqual(calls, [(text, "sonnet")])
         self.assertTrue(result["keys"])  # compiled successfully
@@ -84,16 +97,18 @@ class RunLlmFallbackTest(unittest.TestCase):
             cli.run("some unparseable free-form text with no rule match", extract_fn=fake_extract)
         self.assertIn("boom: no valid spec", str(ctx.exception))
 
-    def test_llm_not_installed_exits_with_install_hint(self):
-        # No extract_fn given and the llm extra is not installed in this
-        # test environment: run() must surface the install hint rather
-        # than an ImportError/traceback.
+    def test_llm_unavailable_exits_with_install_hint(self):
+        # No extract_fn given and no backend resolves (no key, no
+        # claude-cli): run() must surface the install/enable hint
+        # rather than an ImportError/traceback.
         text = "some unparseable free-form text with no rule match"
-        with self.assertRaises(cli.Wod2KeysError) as ctx:
-            cli.run(text, use_llm=True)
+        with mock.patch.dict(os.environ, _no_backend_env(), clear=True):
+            with self.assertRaises(cli.Wod2KeysError) as ctx:
+                cli.run(text, llm="auto")
         message = str(ctx.exception)
         self.assertIn("unparsed", message)
         self.assertIn("pm5keys[llm]", message)
+        self.assertIn("ANTHROPIC_API_KEY", message)
         self.assertIn("--llm claude-cli", message)
 
 
@@ -108,9 +123,11 @@ class RunErrorCasesTest(unittest.TestCase):
 
     def test_unparsed_with_no_llm_message(self):
         with self.assertRaises(cli.Wod2KeysError) as ctx:
-            cli.run("some free-form text nobody could parse as a workout", use_llm=False)
-        self.assertIn("unparsed", str(ctx.exception))
-        self.assertIn("without --no-llm", str(ctx.exception))
+            cli.run("some free-form text nobody could parse as a workout", llm="none")
+        message = str(ctx.exception)
+        self.assertIn("unparsed", message)
+        self.assertIn("--llm anthropic", message)
+        self.assertIn("--llm claude-cli", message)
 
 
 class MainCliTest(unittest.TestCase):
@@ -147,7 +164,16 @@ class MainCliTest(unittest.TestCase):
         )
         self.assertEqual(code, 2)
         self.assertIn("unparsed", err)
-        self.assertIn("without --no-llm", err)
+        self.assertIn("--llm anthropic", err)
+        self.assertIn("--llm claude-cli", err)
+        self.assertEqual(out, "")
+
+    def test_llm_none_flag_equivalent_to_no_llm(self):
+        code, out, err = self._run_main(
+            ["some free-form text nobody could parse as a workout", "--llm", "none"]
+        )
+        self.assertEqual(code, 2)
+        self.assertIn("unparsed", err)
         self.assertEqual(out, "")
 
     def test_empty_input_exits_2(self):
@@ -155,11 +181,24 @@ class MainCliTest(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertEqual(out, "")
 
-    def test_llm_not_installed_exits_2_with_install_hint(self):
-        code, out, err = self._run_main(["four hard 500s with 90 seconds off"])
+    def test_llm_unavailable_exits_2_with_install_hint(self):
+        with mock.patch.dict(os.environ, _no_backend_env(), clear=True):
+            code, out, err = self._run_main(["four hard 500s with 90 seconds off"])
         self.assertEqual(code, 2)
         self.assertIn("unparsed", err)
         self.assertIn("pm5keys[llm]", err)
+        self.assertIn("ANTHROPIC_API_KEY", err)
+        self.assertEqual(out, "")
+
+    def test_llm_anthropic_without_key_exits_2_naming_env_var(self):
+        env = dict(os.environ)
+        env.pop("ANTHROPIC_API_KEY", None)
+        with mock.patch.dict(os.environ, env, clear=True):
+            code, out, err = self._run_main(
+                ["four hard 500s with 90 seconds off", "--llm", "anthropic"]
+            )
+        self.assertEqual(code, 2)
+        self.assertIn("ANTHROPIC_API_KEY", err)
         self.assertEqual(out, "")
 
     def test_verbose_prints_spec_and_source_to_stderr(self):
