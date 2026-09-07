@@ -97,8 +97,7 @@ def validate_spec(spec: dict) -> None:
     if kind == "intervals_variable":
         if "work" in spec or "rest_s" in spec or "count" in spec:
             raise ValueError(
-                "intervals_variable must not carry work/rest_s/count "
-                "(use intervals instead)"
+                "intervals_variable must not carry work/rest_s/count (use intervals instead)"
             )
         intervals = spec.get("intervals")
         if not isinstance(intervals, list) or len(intervals) == 0:
@@ -112,9 +111,7 @@ def validate_spec(spec: dict) -> None:
                 raise ValueError(f"intervals[{i}].rest_s must be an int >= 0")
             if i < len(intervals) - 1 and rest_s == 0:
                 # Only the last interval may have rest_s == 0.
-                raise ValueError(
-                    f"intervals[{i}].rest_s == 0 but is not the last interval"
-                )
+                raise ValueError(f"intervals[{i}].rest_s == 0 but is not the last interval")
     else:
         if "intervals" in spec:
             raise ValueError(f"{kind} must not carry an intervals list")
@@ -197,20 +194,14 @@ def _parse_distance_token(num: str, unit: str) -> int:
 # Matches the various "(BikeErg: ...)" / "Note: for BikeErg, distance is
 # ... meters" spellings seen in the corpus, capturing the raw override
 # text after the colon/'is'.
-_BIKEERG_PAREN_RE = re.compile(
-    r"\(\s*(?:for\s+)?bikeerg\s*:?\s*([^)]*)\)", re.IGNORECASE
-)
+_BIKEERG_PAREN_RE = re.compile(r"\(\s*(?:for\s+)?bikeerg\s*:?\s*([^)]*)\)", re.IGNORECASE)
 _BIKEERG_NOTE_RE = re.compile(
     r"note:\s*for\s+bikeerg,\s*distance\s+is\s+([\d,]+)\s*met(?:er|re)s?",
     re.IGNORECASE,
 )
-_BIKEERG_INLINE_RE = re.compile(
-    r"\(([\d,]+)\s*m\s+for\s+bikeerg\)", re.IGNORECASE
-)
+_BIKEERG_INLINE_RE = re.compile(r"\(([\d,]+)\s*m\s+for\s+bikeerg\)", re.IGNORECASE)
 
-_DIST_NUM_UNIT_RE = re.compile(
-    r"([\d,]+(?:\.\d+)?)\s*(k\b|m\b|meters?\b|meter\b)\b", re.IGNORECASE
-)
+_DIST_NUM_UNIT_RE = re.compile(r"([\d,]+(?:\.\d+)?)\s*(k\b|m\b|meters?\b|meter\b)\b", re.IGNORECASE)
 
 
 def _extract_bikeerg_override(text: str):
@@ -272,11 +263,7 @@ def _extract_bikeerg_override(text: str):
         # (not immediately followed by exactly 3 digits then a word
         # boundary, i.e. a real thousands group like the ",000" in
         # "10,000m").
-        raw_parts = [
-            p.strip()
-            for p in re.split(r"[,/]\s*(?!\d{3}\b)", inner)
-            if p.strip()
-        ]
+        raw_parts = [p.strip() for p in re.split(r"[,/]\s*(?!\d{3}\b)", inner) if p.strip()]
         if not raw_parts:
             return None
 
@@ -288,9 +275,7 @@ def _extract_bikeerg_override(text: str):
         earlier_bare = all(bare_number_re.fullmatch(p) for p in raw_parts[:-1])
         if last_match and earlier_bare and len(raw_parts) > 1:
             unit = last_match.group(2)
-            values = [
-                _parse_distance_token(p, unit) for p in raw_parts[:-1]
-            ]
+            values = [_parse_distance_token(p, unit) for p in raw_parts[:-1]]
             values.append(_parse_distance_token(last_match.group(1), unit))
             return values
 
@@ -404,18 +389,35 @@ def _finalize(work_kind_prefix, work, rest_s=None, count=None, intervals=None):
 # with 1 minute easy" / "N x 1 min / 1 min easy" / "N x 2:30 / 30 seconds
 # easy" / "N x 45s work, 45s rest" / "10 x 20 calories/:20 rest"
 _N_X_WORK_SEP_REST_RE = re.compile(
-    r"(" + _NUM_RE + r")\s*[xX]\s*("
+    r"("
+    + _NUM_RE
+    + r")\s*[xX]\s*("
     + r"\d{1,3}:\d{2}"  # mm:ss
     + r"|[\d,]+(?:\.\d+)?\s*(?:k\b|m\b|meters?\b|meter\b)"  # distance
-    + r"|" + _NUM_RE + r"\s*" + _MIN_UNIT  # minutes
-    + r"|" + _NUM_RE + r"\s*" + _SEC_UNIT  # seconds
-    + r"|" + _NUM_RE + r"\s*" + _CAL_UNIT  # calories
+    + r"|"
+    + _NUM_RE
+    + r"\s*"
+    + _MIN_UNIT  # minutes
+    + r"|"
+    + _NUM_RE
+    + r"\s*"
+    + _SEC_UNIT  # seconds
+    + r"|"
+    + _NUM_RE
+    + r"\s*"
+    + _CAL_UNIT  # calories
     + r")"
     r"(?:\s*(?:work)?\s*[,/]?\s*("
     + r"\d{1,2}:\d{2}"
     + r"|:\d{1,2}"  # bare colon-prefixed seconds, e.g. ':20'
-    + r"|" + _NUM_RE + r"\s*" + _MIN_UNIT
-    + r"|" + _NUM_RE + r"\s*" + _SEC_UNIT
+    + r"|"
+    + _NUM_RE
+    + r"\s*"
+    + _MIN_UNIT
+    + r"|"
+    + _NUM_RE
+    + r"\s*"
+    + _SEC_UNIT
     + r")\s*(?:work,?\s*)?(?:rest|easy|light|recovery)?)?",
     re.IGNORECASE,
 )
@@ -450,12 +452,23 @@ def _match_n_x_work_rest(text: str):
 # "N x 500m" / "8 x 1000m" with count but NO rest in this chunk -- caller
 # falls back to searching the rest of the text for a rest spec.
 _N_X_WORK_ONLY_RE = re.compile(
-    r"(" + _NUM_RE + r")\s*[xX]\s*("
+    r"("
+    + _NUM_RE
+    + r")\s*[xX]\s*("
     + r"\d{1,3}:\d{2}"
     + r"|[\d,]+(?:\.\d+)?\s*(?:k\b|m\b|meters?\b|meter\b)"
-    + r"|" + _NUM_RE + r"\s*" + _MIN_UNIT
-    + r"|" + _NUM_RE + r"\s*" + _SEC_UNIT
-    + r"|" + _NUM_RE + r"\s*" + _CAL_UNIT
+    + r"|"
+    + _NUM_RE
+    + r"\s*"
+    + _MIN_UNIT
+    + r"|"
+    + _NUM_RE
+    + r"\s*"
+    + _SEC_UNIT
+    + r"|"
+    + _NUM_RE
+    + r"\s*"
+    + _CAL_UNIT
     + r")",
     re.IGNORECASE,
 )
@@ -464,15 +477,29 @@ _N_X_WORK_ONLY_RE = re.compile(
 # rest). Handled by _N_X_WORK_SEP_REST_RE already via 'with' not matching
 # the separator -- add a dedicated 'with' variant.
 _N_X_WORK_WITH_REST_RE = re.compile(
-    r"(" + _NUM_RE + r")\s*[xX]\s*("
+    r"("
+    + _NUM_RE
+    + r")\s*[xX]\s*("
     + r"[\d,]+(?:\.\d+)?\s*(?:k\b|m\b|meters?\b|meter\b)"
-    + r"|" + _NUM_RE + r"\s*" + _MIN_UNIT
-    + r"|" + _NUM_RE + r"\s*" + _SEC_UNIT
-    + r"|" + _NUM_RE + r"\s*" + _CAL_UNIT
+    + r"|"
+    + _NUM_RE
+    + r"\s*"
+    + _MIN_UNIT
+    + r"|"
+    + _NUM_RE
+    + r"\s*"
+    + _SEC_UNIT
+    + r"|"
+    + _NUM_RE
+    + r"\s*"
+    + _CAL_UNIT
     + r")"
     r"\s*with\s*("
-    + _NUM_RE + r")\s*(" + _MIN_UNIT
-    + r"|" + _SEC_UNIT
+    + _NUM_RE
+    + r")\s*("
+    + _MIN_UNIT
+    + r"|"
+    + _SEC_UNIT
     + r")\s*(?:easy|light|recovery|rest)?",
     re.IGNORECASE,
 )
@@ -534,13 +561,25 @@ def _match_n_x_work_then_fallback_rest(text: str):
 # --- "N rounds/intervals of WORK [work/rest word] REST" ---------------------
 
 _N_ROUNDS_OF_WORK_REST_RE = re.compile(
-    r"(" + _NUM_RE + r")\s*(?:rounds?|intervals?)\s+of\s+("
-    + _NUM_RE + r"\s*" + _SEC_UNIT
-    + r"|" + _NUM_RE + r"\s*" + _MIN_UNIT
+    r"("
+    + _NUM_RE
+    + r")\s*(?:rounds?|intervals?)\s+of\s+("
+    + _NUM_RE
+    + r"\s*"
+    + _SEC_UNIT
+    + r"|"
+    + _NUM_RE
+    + r"\s*"
+    + _MIN_UNIT
     + r"|[\d,]+(?:\.\d+)?\s*(?:k\b|m\b|meters?\b|meter\b)"
     + r")\s*(?:work)?\s*(?:followed by|and|,)?\s*("
-    + _NUM_RE + r"\s*" + _SEC_UNIT
-    + r"|" + _NUM_RE + r"\s*" + _MIN_UNIT
+    + _NUM_RE
+    + r"\s*"
+    + _SEC_UNIT
+    + r"|"
+    + _NUM_RE
+    + r"\s*"
+    + _MIN_UNIT
     + r")\s*(?:rest|easy|light|recovery)",
     re.IGNORECASE,
 )
@@ -563,15 +602,32 @@ def _match_n_rounds_of(text: str):
 # --- Slash pyramids / ladders: "a/b/c/... minutes with N minutes rest" -----
 
 _SLASH_MIN_WITH_REST_RE = re.compile(
-    r"((?:" + _NUM_RE + r"\s*/\s*)+" + _NUM_RE + r")\s*" + _MIN_UNIT
-    + r"\s*with\s*(" + _NUM_RE + r")\s*" + _MIN_UNIT + r"\s*(?:rest|easy|light|recovery)?",
+    r"((?:"
+    + _NUM_RE
+    + r"\s*/\s*)+"
+    + _NUM_RE
+    + r")\s*"
+    + _MIN_UNIT
+    + r"\s*with\s*("
+    + _NUM_RE
+    + r")\s*"
+    + _MIN_UNIT
+    + r"\s*(?:rest|easy|light|recovery)?",
     re.IGNORECASE,
 )
 
 # "Intervals of 6/3/3/1/1/1 minutes with 2 minutes rest."
 _INTERVALS_OF_SLASH_MIN_RE = re.compile(
-    r"intervals\s+of\s+((?:" + _NUM_RE + r"\s*/\s*)+" + _NUM_RE + r")\s*"
-    + _MIN_UNIT + r"\s*with\s*(" + _NUM_RE + r")\s*" + _MIN_UNIT
+    r"intervals\s+of\s+((?:"
+    + _NUM_RE
+    + r"\s*/\s*)+"
+    + _NUM_RE
+    + r")\s*"
+    + _MIN_UNIT
+    + r"\s*with\s*("
+    + _NUM_RE
+    + r")\s*"
+    + _MIN_UNIT
     + r"\s*(?:rest|easy|light|recovery)?",
     re.IGNORECASE,
 )
@@ -713,9 +769,7 @@ def _try_parse_variable_chain(segments):
 
 
 _DIST_SEGMENT = r"[\d,]+(?:\.\d+)?\s*(?:k\b|m\b|meters?\b|meter\b)"
-_REST_SEGMENT = (
-    r"" + _NUM_RE + r"\s*(?:" + _MIN_UNIT + r"|" + _SEC_UNIT + r")\s*rest\.?"
-)
+_REST_SEGMENT = r"" + _NUM_RE + r"\s*(?:" + _MIN_UNIT + r"|" + _SEC_UNIT + r")\s*rest\.?"
 
 
 def _match_slash_variable_rest_chain(text: str):
@@ -765,8 +819,19 @@ def _match_comma_variable_chain(text: str):
 # min, 2 min, 1 min pyramid / 1 min easy" ------------------------------------
 
 _COMMA_MIN_PYRAMID_RE = re.compile(
-    r"((?:" + _NUM_RE + r"\s*" + _MIN_UNIT + r"\s*,\s*)+" + _NUM_RE + r"\s*" + _MIN_UNIT
-    + r")\s*pyramid\s*/\s*(" + _NUM_RE + r")\s*" + _MIN_UNIT + r"\s*(?:easy|light|recovery|rest)",
+    r"((?:"
+    + _NUM_RE
+    + r"\s*"
+    + _MIN_UNIT
+    + r"\s*,\s*)+"
+    + _NUM_RE
+    + r"\s*"
+    + _MIN_UNIT
+    + r")\s*pyramid\s*/\s*("
+    + _NUM_RE
+    + r")\s*"
+    + _MIN_UNIT
+    + r"\s*(?:easy|light|recovery|rest)",
     re.IGNORECASE,
 )
 
@@ -845,9 +910,7 @@ def _apply_bikeerg_override(spec: dict, overrides) -> dict:
     for what was, on RowErg/SkiErg, a distance leg)."""
     if spec["kind"] == "intervals_variable":
         intervals = spec["intervals"]
-        distance_positions = [
-            i for i, iv in enumerate(intervals) if "distance_m" in iv["work"]
-        ]
+        distance_positions = [i for i, iv in enumerate(intervals) if "distance_m" in iv["work"]]
         if not distance_positions:
             return spec
         new_intervals = list(intervals)
@@ -955,9 +1018,7 @@ _PLURAL_NUM_CUE_RE = re.compile(r"\b\d+s\b")
 # intervals"/"N pieces" framing, which fixed/variable interval descriptions
 # legitimately use to restate their own count, e.g. "Seven intervals in a
 # pyramid of ...").
-_OUTER_REPEAT_OF_RE = re.compile(
-    r"\b(" + _NUM_RE + r")\s*(?:rounds?|sets?)\s+of\b", re.IGNORECASE
-)
+_OUTER_REPEAT_OF_RE = re.compile(r"\b(" + _NUM_RE + r")\s*(?:rounds?|sets?)\s+of\b", re.IGNORECASE)
 
 # Rest/chaining cue words. These are only disqualifying for a single_*
 # result when they occur in the *same sentence* as a number+unit work

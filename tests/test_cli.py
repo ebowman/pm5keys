@@ -225,16 +225,10 @@ class MainCliTest(unittest.TestCase):
         # The rest-minutes cursor moves (4xA) and rest-minutes +1 edits
         # (2xB) collapse per the coordinator's required shape.
         self.assertTrue(
-            any(
-                "4xA" in line and "cursor right to rest minutes" in line
-                for line in explain_lines
-            )
+            any("4xA" in line and "cursor right to rest minutes" in line for line in explain_lines)
         )
         self.assertTrue(
-            any(
-                "2xB" in line and "rest minutes +2 (now 2)" in line
-                for line in explain_lines
-            )
+            any("2xB" in line and "rest minutes +2 (now 2)" in line for line in explain_lines)
         )
 
     def test_title_whitespace_normalisation(self):

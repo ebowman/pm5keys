@@ -54,9 +54,7 @@ EMAIL_IE_RE = re.compile(r"[a-z0-9._%+-]+@[a-z0-9.-]+\.ie\b", re.IGNORECASE)
 # Case-insensitive Campaign Monitor tracking-link shape, e.g.
 # 'workoutoftheday.cmail19.com/t/...'. Matches the link shape rather
 # than any specific subscriber token.
-CMAIL_LINK_RE = re.compile(
-    r"workoutoftheday\.cmail\d*\.com/t/", re.IGNORECASE
-)
+CMAIL_LINK_RE = re.compile(r"workoutoftheday\.cmail\d*\.com/t/", re.IGNORECASE)
 
 # Fixture-only forbidden substring.
 FIXTURES_FORBIDDEN_SUBSTRING = "cmail"
@@ -123,25 +121,18 @@ def _scan_file(path, extra_patterns):
         for needle in extra_patterns:
             if needle.lower() in lowered:
                 offenses.append(
-                    f"{rel}:{lineno}: contains forbidden pattern from "
-                    f".pii-patterns.local"
+                    f"{rel}:{lineno}: contains forbidden pattern from .pii-patterns.local"
                 )
 
         email_match = EMAIL_IE_RE.search(line)
         if email_match:
-            offenses.append(
-                f"{rel}:{lineno}: contains .ie e-mail address {email_match.group(0)!r}"
-            )
+            offenses.append(f"{rel}:{lineno}: contains .ie e-mail address {email_match.group(0)!r}")
 
         if CMAIL_LINK_RE.search(line):
-            offenses.append(
-                f"{rel}:{lineno}: contains a Campaign Monitor tracking link"
-            )
+            offenses.append(f"{rel}:{lineno}: contains a Campaign Monitor tracking link")
 
         if is_fixture and FIXTURES_FORBIDDEN_SUBSTRING in lowered:
-            offenses.append(
-                f"{rel}:{lineno}: fixture contains {FIXTURES_FORBIDDEN_SUBSTRING!r}"
-            )
+            offenses.append(f"{rel}:{lineno}: fixture contains {FIXTURES_FORBIDDEN_SUBSTRING!r}")
 
     return offenses
 

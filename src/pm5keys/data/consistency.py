@@ -171,7 +171,9 @@ def find_description_variants(rows: list[dict]) -> list:
         entry = groups[key]
         description = row.get("description") or ""
         norm_desc = _norm(description)
-        bucket = entry["desc_counts"].setdefault(norm_desc, {"description": description, "count": 0})
+        bucket = entry["desc_counts"].setdefault(
+            norm_desc, {"description": description, "count": 0}
+        )
         bucket["count"] += 1
 
     variants = []
@@ -180,9 +182,7 @@ def find_description_variants(rows: list[dict]) -> list:
         desc_counts = entry["desc_counts"]
         if len(desc_counts) <= 1:
             continue
-        descriptions = sorted(
-            desc_counts.values(), key=lambda d: (-d["count"], d["description"])
-        )
+        descriptions = sorted(desc_counts.values(), key=lambda d: (-d["count"], d["description"]))
         variants.append(
             {
                 "machines": entry["machines"],
@@ -242,12 +242,8 @@ def sequence_stats(rows: list[dict]) -> dict:
 
     histogram_sorted = sorted(histogram.items(), key=_bucket_sort_key)
 
-    first_token_sorted = dict(
-        sorted(first_token_counts.items(), key=lambda kv: (-kv[1], kv[0]))
-    )
-    machines_sorted = dict(
-        sorted(machines_counts.items(), key=lambda kv: (-kv[1], kv[0] or ""))
-    )
+    first_token_sorted = dict(sorted(first_token_counts.items(), key=lambda kv: (-kv[1], kv[0])))
+    machines_sorted = dict(sorted(machines_counts.items(), key=lambda kv: (-kv[1], kv[0] or "")))
 
     return {
         "first_token_counts": first_token_sorted,
@@ -295,8 +291,7 @@ def render_markdown(
     lines.append("# Dataset consistency report")
     lines.append("")
     lines.append(
-        f"This file is generated, not hand-edited. Dataset: `{dataset_path}` "
-        f"({row_count} rows)."
+        f"This file is generated, not hand-edited. Dataset: `{dataset_path}` ({row_count} rows)."
     )
     lines.append("")
     lines.append(
@@ -320,9 +315,7 @@ def render_markdown(
         )
     )
 
-    lines.append(
-        "## 2. Same sequence, different descriptions (informational)"
-    )
+    lines.append("## 2. Same sequence, different descriptions (informational)")
     lines.append("")
     if not description_variants:
         lines.append("No variants found.")
@@ -350,8 +343,7 @@ def render_markdown(
     lines.append("### pm5_expanded sequence length")
     lines.append("")
     lines.append(
-        f"min: {stats['length_min']}, median: {stats['length_median']}, "
-        f"max: {stats['length_max']}"
+        f"min: {stats['length_min']}, median: {stats['length_median']}, max: {stats['length_max']}"
     )
     lines.append("")
     lines.append("| bucket | count |")
@@ -387,7 +379,9 @@ def _run_cli(argv: list[str]) -> int:
         description="Check the WOD dataset for label/sequence conflicts"
     )
     parser.add_argument(
-        "--dataset", default="data/dataset.jsonl", help="path to dataset.jsonl (default: data/dataset.jsonl)"
+        "--dataset",
+        default="data/dataset.jsonl",
+        help="path to dataset.jsonl (default: data/dataset.jsonl)",
     )
     parser.add_argument(
         "--out",

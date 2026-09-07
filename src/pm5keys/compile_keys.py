@@ -147,8 +147,9 @@ def _rest_digits_for(screen: "pm5._Screen", value: int) -> list:
     return pm5._value_to_digits(screen.rest_fields, value)
 
 
-def _sweep_presses(current_digits: list, target_digits: list, current_cursor: int,
-                    default_cursor: int) -> list:
+def _sweep_presses(
+    current_digits: list, target_digits: list, current_cursor: int, default_cursor: int
+) -> list:
     """Emit the D*/A*/B*/C* presses (each as a single-letter press, not yet
     merged) to move current_digits -> target_digits, starting from
     current_cursor (which must equal default_cursor -- the screen has just
@@ -220,7 +221,12 @@ def _compile_single_or_fixed(spec: dict) -> list:
 def _compile_variable(spec: dict) -> list:
     intervals = spec["intervals"]
 
-    presses = ["B", "D", "D", "D"]  # Main Menu -> Select Workout -> New Workout -> Intervals -> Variable
+    presses = [
+        "B",
+        "D",
+        "D",
+        "D",
+    ]  # Main Menu -> Select Workout -> New Workout -> Intervals -> Variable
 
     retained: dict = {}
     n = len(intervals)
@@ -256,7 +262,9 @@ def _compile_variable(spec: dict) -> list:
         target_digits = _digits_for(screen, value) + _rest_digits_for(screen, target_rest_val)
 
         presses.extend(
-            _sweep_presses(current_digits, target_digits, screen.default_cursor, screen.default_cursor)
+            _sweep_presses(
+                current_digits, target_digits, screen.default_cursor, screen.default_cursor
+            )
         )
         presses.append("E")
 
@@ -416,9 +424,12 @@ def _classify_row(spec: dict, gold_seq: str) -> dict:
         ivs = sim_gold.get("intervals", [])
         expected_work = spec.get("work")
         expected_rest = spec.get("rest_s")
-        if count is not None and len(ivs) == count and all(
-            iv.get("work") == expected_work and iv.get("rest_s") == expected_rest
-            for iv in ivs
+        if (
+            count is not None
+            and len(ivs) == count
+            and all(
+                iv.get("work") == expected_work and iv.get("rest_s") == expected_rest for iv in ivs
+            )
         ):
             return {
                 "category": "GOLD_VARIABLE",

@@ -94,10 +94,7 @@ class ParseSpecPatternTest(unittest.TestCase):
 
     def test_n_x_distance_comma_minutes_rest(self):
         # 'N x 500m, 2 minutes rest'
-        text = (
-            "8 x 500m, 2 minutes rest\n"
-            "8 x 500m intervals with 2 minutes rest. (BikeErg: 1000m)"
-        )
+        text = "8 x 500m, 2 minutes rest\n8 x 500m intervals with 2 minutes rest. (BikeErg: 1000m)"
         s = spec.parse_spec(text, "RowErg and SkiErg")
         self.assertEqual(s["kind"], "intervals_distance")
         self.assertEqual(s["work"], {"distance_m": 500})
@@ -133,10 +130,7 @@ class ParseSpecPatternTest(unittest.TestCase):
 
     def test_n_x_seconds_work_seconds_rest(self):
         # 'N x 45s work, 45s rest'
-        text = (
-            "20 x 45s work, 45s rest\n"
-            "20 rounds of 45 seconds work followed by 45 seconds rest"
-        )
+        text = "20 x 45s work, 45s rest\n20 rounds of 45 seconds work followed by 45 seconds rest"
         s = spec.parse_spec(text, "All Machines")
         self.assertEqual(s["kind"], "intervals_time")
         self.assertEqual(s["work"], {"time_s": 45})
@@ -264,10 +258,7 @@ class ParseSpecPatternTest(unittest.TestCase):
 
     def test_single_time_minute_time_trial(self):
         # '30 minute time trial'
-        text = (
-            "30 minute time trial\n"
-            "Do a 30 minute time trial, going for your personal best."
-        )
+        text = "30 minute time trial\nDo a 30 minute time trial, going for your personal best."
         s = spec.parse_spec(text, "All Machines")
         self.assertEqual(s["kind"], "single_time")
         self.assertEqual(s["work"], {"time_s": 1800})
@@ -362,10 +353,7 @@ class ParseSpecPatternTest(unittest.TestCase):
 
     def test_bikeerg_override_single_value_paren(self):
         # '(BikeErg: 1000m)'
-        text = (
-            "8 x 500m, 2 minutes rest\n"
-            "8 x 500m intervals with 2 minutes rest. (BikeErg: 1000m)"
-        )
+        text = "8 x 500m, 2 minutes rest\n8 x 500m intervals with 2 minutes rest. (BikeErg: 1000m)"
         s = spec.parse_spec(text, "BikeErg")
         self.assertEqual(s["machine"], "bikeerg")
         self.assertEqual(s["work"], {"distance_m": 1000})
@@ -458,9 +446,7 @@ class ParseSpecPatternTest(unittest.TestCase):
         self.assertEqual(s["intervals"][1]["work"], {"time_s": 600})
 
     def test_word_numbers_in_count_and_rest(self):
-        s = spec.parse_spec(
-            "five x 500m with three minutes rest", "All Machines"
-        )
+        s = spec.parse_spec("five x 500m with three minutes rest", "All Machines")
         self.assertEqual(s["kind"], "intervals_distance")
         self.assertEqual(s["work"], {"distance_m": 500})
         self.assertEqual(s["count"], 5)
@@ -615,19 +601,13 @@ class ParseSpecSentenceScopedCueGuardProbeTest(unittest.TestCase):
         self.assertIsNone(spec.parse_spec("1000m, rest, 1000m", "All Machines"))
 
     def test_30_minutes_on_30_minutes_off_unparsed(self):
-        self.assertIsNone(
-            spec.parse_spec("30 minutes on, 30 minutes off", "All Machines")
-        )
+        self.assertIsNone(spec.parse_spec("30 minutes on, 30 minutes off", "All Machines"))
 
     def test_5k_with_2k_warmup_unparsed(self):
-        self.assertIsNone(
-            spec.parse_spec("5k with a 2k warmup", "All Machines")
-        )
+        self.assertIsNone(spec.parse_spec("5k with a 2k warmup", "All Machines"))
 
     def test_2000m_followed_by_1000m_unparsed(self):
-        self.assertIsNone(
-            spec.parse_spec("2000m followed by 1000m", "All Machines")
-        )
+        self.assertIsNone(spec.parse_spec("2000m followed by 1000m", "All Machines"))
 
     def test_2000m_3_minutes_rest_1000m_unparsed_or_ladder(self):
         # Either unparsed, or a correct 2000m/3min-rest/1000m variable
@@ -637,9 +617,7 @@ class ParseSpecSentenceScopedCueGuardProbeTest(unittest.TestCase):
             self.assertNotEqual(s["kind"], "single_distance")
 
     def test_row_5000m_then_ski_5000m_unparsed(self):
-        self.assertIsNone(
-            spec.parse_spec("row 5000m, then ski 5000m", "All Machines")
-        )
+        self.assertIsNone(spec.parse_spec("row 5000m, then ski 5000m", "All Machines"))
 
     def test_2000m_easy_may_stay_single(self):
         # "may stay a single" per the coordinator's probe: either outcome
@@ -659,18 +637,10 @@ class ParseSpecSentenceScopedCueGuardProbeTest(unittest.TestCase):
         )
 
     def test_probe_already_passing_rest_then_unparsed(self):
-        self.assertIsNone(
-            spec.parse_spec(
-                "2000m with 3 minutes rest then 1000m", "All Machines"
-            )
-        )
+        self.assertIsNone(spec.parse_spec("2000m with 3 minutes rest then 1000m", "All Machines"))
 
     def test_probe_already_passing_nested_sets_unparsed(self):
-        self.assertIsNone(
-            spec.parse_spec(
-                "3 sets of 4 x 250m with 45 seconds off", "All Machines"
-            )
-        )
+        self.assertIsNone(spec.parse_spec("3 sets of 4 x 250m with 45 seconds off", "All Machines"))
 
     def test_probe_already_passing_5_x_500m_unparsed(self):
         self.assertIsNone(spec.parse_spec("5 x 500m", "All Machines"))

@@ -197,8 +197,12 @@ def _run_cli(argv: list[str]) -> int:
         default="data/dataset_unique.jsonl",
         help="input deduped dataset (default: data/dataset_unique.jsonl)",
     )
-    parser.add_argument("--train", default="data/train.jsonl", help="train output path (default: data/train.jsonl)")
-    parser.add_argument("--eval", default="data/eval.jsonl", help="eval output path (default: data/eval.jsonl)")
+    parser.add_argument(
+        "--train", default="data/train.jsonl", help="train output path (default: data/train.jsonl)"
+    )
+    parser.add_argument(
+        "--eval", default="data/eval.jsonl", help="eval output path (default: data/eval.jsonl)"
+    )
     parser.add_argument("--seed", type=int, default=42, help="shuffle seed (default: 42)")
     parser.add_argument(
         "--eval-frac",
@@ -234,7 +238,9 @@ def _run_cli(argv: list[str]) -> int:
     all_machines = sorted(set(train_machines) | set(eval_machines))
     print("rows by machines:")
     for machines in all_machines:
-        print(f"  {machines}: train={train_machines.get(machines, 0)} eval={eval_machines.get(machines, 0)}")
+        print(
+            f"  {machines}: train={train_machines.get(machines, 0)} eval={eval_machines.get(machines, 0)}"
+        )
 
     return 0
 

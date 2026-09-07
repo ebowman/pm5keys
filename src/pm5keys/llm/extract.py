@@ -374,8 +374,7 @@ def extract_spec(
         raise
     except (json.JSONDecodeError, ValueError) as exc:
         retry_prompt = (
-            prompt
-            + f"\n\nYour previous answer was invalid: {exc}\n"
+            prompt + f"\n\nYour previous answer was invalid: {exc}\n"
             "Respond with corrected JSON only, no prose, no code fences."
         )
         retry_response_text = _get_response(retry_prompt, backend, model_name, cache_dir)
@@ -403,9 +402,7 @@ def main(argv=None) -> int:
     )
     parser.add_argument("--model", default=None, help="model id/alias to use")
     parser.add_argument("--k", type=int, default=25, help="number of few-shot examples")
-    parser.add_argument(
-        "--no-cache", action="store_true", help="disable response caching"
-    )
+    parser.add_argument("--no-cache", action="store_true", help="disable response caching")
     args = parser.parse_args(argv)
 
     cache_dir = None if args.no_cache else _default_cache_dir()

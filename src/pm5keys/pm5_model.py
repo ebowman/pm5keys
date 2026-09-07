@@ -156,8 +156,7 @@ _REST_FIELDS = [600, 60, 10, 1]  # 10min,min,10s,s
 
 
 class _Screen:
-    def __init__(self, unit, work_fields, default_work, has_rest,
-                 default_rest, default_cursor):
+    def __init__(self, unit, work_fields, default_work, has_rest, default_rest, default_cursor):
         self.unit = unit
         self.work_fields = work_fields
         self.default_work = default_work
@@ -202,10 +201,20 @@ _SCREEN_NAME = {
 # fields (distance/time/calories) are named "... digit" (e.g. "distance
 # 100s digit"); rest fields are named without the word "digit" (e.g.
 # "rest minutes") to match Concept2's own labelling of the rest row.
-_DIST_FIELD_NAMES = ["distance 10000s digit", "distance 1000s digit",
-                      "distance 100s digit", "distance 10s digit", "distance 1s digit"]
-_TIME_FIELD_NAMES = ["time hours digit", "time 10-minutes digit", "time minutes digit",
-                      "time 10-seconds digit", "time seconds digit"]
+_DIST_FIELD_NAMES = [
+    "distance 10000s digit",
+    "distance 1000s digit",
+    "distance 100s digit",
+    "distance 10s digit",
+    "distance 1s digit",
+]
+_TIME_FIELD_NAMES = [
+    "time hours digit",
+    "time 10-minutes digit",
+    "time minutes digit",
+    "time 10-seconds digit",
+    "time seconds digit",
+]
 _CAL_FIELD_NAMES = ["calories 100s digit", "calories 10s digit", "calories 1s digit"]
 _REST_FIELD_NAMES = ["rest 10-minutes", "rest minutes", "rest 10-seconds", "rest seconds"]
 
@@ -224,6 +233,7 @@ def _field_names(screen) -> list:
     if screen.has_rest:
         names = names + _REST_FIELD_NAMES
     return names
+
 
 _FIXED_KIND_FOR_UNIT = {
     "distance_m": "intervals_distance",
@@ -317,9 +327,7 @@ class PM5:
         for key in keyseq.expand(seq):
             self.press(key)
         if self.state != _S_DONE:
-            raise ValueError(
-                f"sequence ended in state {self.state!r}, workout incomplete"
-            )
+            raise ValueError(f"sequence ended in state {self.state!r}, workout incomplete")
         return self.result
 
     def explain(self, seq: str) -> list:
@@ -468,9 +476,7 @@ class PM5:
         if rest_val is None:
             rest_val = screen.default_rest
         work_digits = _value_to_digits(screen.work_fields, work_val)
-        rest_digits = (
-            _value_to_digits(screen.rest_fields, rest_val) if screen.has_rest else []
-        )
+        rest_digits = _value_to_digits(screen.rest_fields, rest_val) if screen.has_rest else []
         self.digits = work_digits + rest_digits
 
     def _press_entry(self, key):
@@ -511,9 +517,7 @@ class PM5:
             # back to the type chooser (not the entry screen).
             unit = self._variable_type
             self._variable_retained[unit] = (work_val, rest_val)
-            self._variable_intervals.append(
-                {"work": {unit: work_val}, "rest_s": rest_val}
-            )
+            self._variable_intervals.append({"work": {unit: work_val}, "rest_s": rest_val})
             self._variable_type = None
             self.state = _S_VARIABLE_TYPE_CHOOSER
         else:
@@ -560,20 +564,89 @@ def explain(seq: str) -> list:
 # ---------------------------------------------------------------------------
 
 GOLD_EXAMPLES = [
-    ("B-D-A-E", {"machine": "all", "kind": "single_distance", "work": {"distance_m": 2000}, "notes": ""}),
-    ("B-D-A-3B-E", {"machine": "all", "kind": "single_distance", "work": {"distance_m": 5000}, "notes": ""}),
-    ("B-D-A-C-E", {"machine": "all", "kind": "single_distance", "work": {"distance_m": 1000}, "notes": ""}),
-    ("B-D-A-D-B-A-2C-E", {"machine": "all", "kind": "single_distance", "work": {"distance_m": 10000}, "notes": ""}),
-    ("B-D-A-B-A-3B-A-3B-A-3B-E", {"machine": "all", "kind": "single_distance", "work": {"distance_m": 3333}, "notes": ""}),
-    ("B-D-A-4B-A-6B-A-6B-A-6B-E", {"machine": "all", "kind": "single_distance", "work": {"distance_m": 6666}, "notes": ""}),
+    (
+        "B-D-A-E",
+        {"machine": "all", "kind": "single_distance", "work": {"distance_m": 2000}, "notes": ""},
+    ),
+    (
+        "B-D-A-3B-E",
+        {"machine": "all", "kind": "single_distance", "work": {"distance_m": 5000}, "notes": ""},
+    ),
+    (
+        "B-D-A-C-E",
+        {"machine": "all", "kind": "single_distance", "work": {"distance_m": 1000}, "notes": ""},
+    ),
+    (
+        "B-D-A-D-B-A-2C-E",
+        {"machine": "all", "kind": "single_distance", "work": {"distance_m": 10000}, "notes": ""},
+    ),
+    (
+        "B-D-A-B-A-3B-A-3B-A-3B-E",
+        {"machine": "all", "kind": "single_distance", "work": {"distance_m": 3333}, "notes": ""},
+    ),
+    (
+        "B-D-A-4B-A-6B-A-6B-A-6B-E",
+        {"machine": "all", "kind": "single_distance", "work": {"distance_m": 6666}, "notes": ""},
+    ),
     ("B-D-B-E", {"machine": "all", "kind": "single_time", "work": {"time_s": 1800}, "notes": ""}),
-    ("B-D-B-D-B-A-3C-E", {"machine": "all", "kind": "single_time", "work": {"time_s": 3600}, "notes": ""}),
-    ("B-D-C-D-2B-E", {"machine": "all", "kind": "single_calorie", "work": {"calories": 250}, "notes": ""}),
-    ("B-2D-5A-2B-E", {"machine": "all", "kind": "intervals_distance", "work": {"distance_m": 500}, "rest_s": 120, "notes": ""}),
-    ("B-2D-A-D-B-A-5C-4A-B-E", {"machine": "all", "kind": "intervals_distance", "work": {"distance_m": 1000}, "rest_s": 60, "notes": ""}),
-    ("B-2D-3B-4A-2B-E", {"machine": "all", "kind": "intervals_time", "work": {"time_s": 180}, "rest_s": 120, "notes": ""}),
-    ("B-2D-B-5A-3B-E", {"machine": "all", "kind": "intervals_time", "work": {"time_s": 60}, "rest_s": 30, "notes": ""}),
-    ("B-2D-4C-4A-2B-E", {"machine": "all", "kind": "intervals_calorie", "work": {"calories": 20}, "rest_s": 20, "notes": ""}),
+    (
+        "B-D-B-D-B-A-3C-E",
+        {"machine": "all", "kind": "single_time", "work": {"time_s": 3600}, "notes": ""},
+    ),
+    (
+        "B-D-C-D-2B-E",
+        {"machine": "all", "kind": "single_calorie", "work": {"calories": 250}, "notes": ""},
+    ),
+    (
+        "B-2D-5A-2B-E",
+        {
+            "machine": "all",
+            "kind": "intervals_distance",
+            "work": {"distance_m": 500},
+            "rest_s": 120,
+            "notes": "",
+        },
+    ),
+    (
+        "B-2D-A-D-B-A-5C-4A-B-E",
+        {
+            "machine": "all",
+            "kind": "intervals_distance",
+            "work": {"distance_m": 1000},
+            "rest_s": 60,
+            "notes": "",
+        },
+    ),
+    (
+        "B-2D-3B-4A-2B-E",
+        {
+            "machine": "all",
+            "kind": "intervals_time",
+            "work": {"time_s": 180},
+            "rest_s": 120,
+            "notes": "",
+        },
+    ),
+    (
+        "B-2D-B-5A-3B-E",
+        {
+            "machine": "all",
+            "kind": "intervals_time",
+            "work": {"time_s": 60},
+            "rest_s": 30,
+            "notes": "",
+        },
+    ),
+    (
+        "B-2D-4C-4A-2B-E",
+        {
+            "machine": "all",
+            "kind": "intervals_calorie",
+            "work": {"calories": 20},
+            "rest_s": 20,
+            "notes": "",
+        },
+    ),
     (
         "B-4D-4A-2B-E-D-B-E-D-B-E-D-B-E-D-B-E-D-C-E-D-C-E-D-C-E-D-C-2E",
         {

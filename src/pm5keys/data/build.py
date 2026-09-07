@@ -135,7 +135,9 @@ def build_rows(records: list[dict]) -> tuple[list[dict], list[dict]]:
             pm5_canonical = keyseq.canonical(pm5_raw)
             if pm5_canonical != pm5_raw:
                 canonical_diff_count += 1
-                print(f"canonical differs: {date} {machines!r}: raw={pm5_raw!r} canonical={pm5_canonical!r}")
+                print(
+                    f"canonical differs: {date} {machines!r}: raw={pm5_raw!r} canonical={pm5_canonical!r}"
+                )
 
             pm34 = pm34_raw
             if pm34 is not None:
@@ -156,7 +158,7 @@ def build_rows(records: list[dict]) -> tuple[list[dict], list[dict]]:
             }
             rows.append(row)
 
-    rows.sort(key=lambda r: (r["date"] or "", ))
+    rows.sort(key=lambda r: (r["date"] or "",))
     # Stable sort preserves original group order within a date since
     # `rows` was already built in (record, group) order and Python's
     # sort is stable -- re-sorting only by date keeps groups in their
@@ -254,7 +256,9 @@ def _run_cli(argv: list[str]) -> int:
         description="Build the Concept2 WOD -> PM5 key-sequence dataset"
     )
     parser.add_argument("--raw", default="raw", help="directory of raw *.html pages (default: raw)")
-    parser.add_argument("--out", default="data", help="output directory for the dataset files (default: data)")
+    parser.add_argument(
+        "--out", default="data", help="output directory for the dataset files (default: data)"
+    )
     args = parser.parse_args(argv)
 
     records, failed = _parse_all(args.raw)
@@ -281,8 +285,7 @@ def _run_cli(argv: list[str]) -> int:
         1
         for record in records
         for group in (record.get("groups") or [])
-        if group.get("pm34") is not None
-        and not _is_valid_seq(group.get("pm34"))
+        if group.get("pm34") is not None and not _is_valid_seq(group.get("pm34"))
     )
     canonical_diff_count = build_rows.canonical_diff_count
 

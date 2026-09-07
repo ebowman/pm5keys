@@ -106,9 +106,11 @@ class PromptAssemblyTest(unittest.TestCase):
 
 class ResponseParsingTest(unittest.TestCase):
     def test_strips_code_fences(self):
-        raw = "```json\n" + json.dumps(
-            {"kind": "single_distance", "work": {"distance_m": 2000}, "notes": ""}
-        ) + "\n```"
+        raw = (
+            "```json\n"
+            + json.dumps({"kind": "single_distance", "work": {"distance_m": 2000}, "notes": ""})
+            + "\n```"
+        )
         spec = ex._parse_response(raw)
         self.assertEqual(spec["kind"], "single_distance")
         self.assertEqual(spec["machine"], "rower")
@@ -154,7 +156,9 @@ class ExtractSpecTest(unittest.TestCase):
     def test_error_json_raises_extract_error_no_retry(self):
         backend = FakeBackend([json.dumps({"error": "missing rest duration"})])
         with self.assertRaises(ExtractError):
-            ex.extract_spec("some text", backend=backend, model="sonnet", k=2, cache_dir=None, pool=SIMPLE_POOL)
+            ex.extract_spec(
+                "some text", backend=backend, model="sonnet", k=2, cache_dir=None, pool=SIMPLE_POOL
+            )
         self.assertEqual(len(backend.calls), 1)
 
     def test_invalid_then_valid_retries_once(self):
@@ -175,7 +179,9 @@ class ExtractSpecTest(unittest.TestCase):
         bad_spec = json.dumps({"kind": "single_distance", "work": {}, "notes": ""})
         backend = FakeBackend([bad_spec, bad_spec])
         with self.assertRaises(ExtractError):
-            ex.extract_spec("some text", backend=backend, model="sonnet", k=2, cache_dir=None, pool=SIMPLE_POOL)
+            ex.extract_spec(
+                "some text", backend=backend, model="sonnet", k=2, cache_dir=None, pool=SIMPLE_POOL
+            )
         self.assertEqual(len(backend.calls), 2)
 
     def test_malformed_json_then_valid_retries_once(self):
@@ -229,7 +235,12 @@ class CacheTest(unittest.TestCase):
 
             backend2 = FakeBackend([])  # would raise IndexError if called
             ex.extract_spec(
-                "a steady 5k", backend=backend2, model="sonnet", k=2, cache_dir=tmp, pool=SIMPLE_POOL
+                "a steady 5k",
+                backend=backend2,
+                model="sonnet",
+                k=2,
+                cache_dir=tmp,
+                pool=SIMPLE_POOL,
             )
             self.assertEqual(len(backend2.calls), 0)
 

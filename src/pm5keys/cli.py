@@ -223,9 +223,7 @@ def _format_explain(trace: list) -> list:
         last_action = actions[-1]
         if group_key[0] == "digit_edit" and count > 1:
             field, sign, _delta, _value = _DIGIT_EDIT_RE.match(last_action).groups()
-            total_delta = sum(
-                int(_DIGIT_EDIT_RE.match(a).group(3)) for a in actions
-            )
+            total_delta = sum(int(_DIGIT_EDIT_RE.match(a).group(3)) for a in actions)
             final_value = _DIGIT_EDIT_RE.match(last_action).group(4)
             action = f"{field} {sign}{total_delta} (now {final_value})"
         else:
@@ -255,7 +253,9 @@ def main(argv: list | None = None) -> int:
         prog="pm5keys",
         description="Turn a free-form RowErg workout description into PM5 button presses.",
     )
-    parser.add_argument("text", nargs="?", default=None, help="workout description (else read from stdin)")
+    parser.add_argument(
+        "text", nargs="?", default=None, help="workout description (else read from stdin)"
+    )
     parser.add_argument(
         "--llm",
         default="auto",
@@ -268,7 +268,9 @@ def main(argv: list | None = None) -> int:
         help="alias for --llm none (do not fall back to the LLM extractor)",
     )
     parser.add_argument("--explain", action="store_true", help="print a per-press explanation")
-    parser.add_argument("--verbose", action="store_true", help="print spec JSON and source to stderr")
+    parser.add_argument(
+        "--verbose", action="store_true", help="print spec JSON and source to stderr"
+    )
     parser.add_argument("--model", default=None, help="LLM model id/alias to use")
     parser.add_argument("--version", action="version", version=f"pm5keys {__version__}")
 

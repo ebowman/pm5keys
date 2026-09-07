@@ -75,12 +75,12 @@ def _is_gold_variable_match(extracted: dict, sim_gold: dict) -> bool:
     expected_rest = extracted.get("rest_s")
     if count is None or len(ivs) != count:
         return False
-    return all(
-        iv.get("work") == expected_work and iv.get("rest_s") == expected_rest for iv in ivs
-    )
+    return all(iv.get("work") == expected_work and iv.get("rest_s") == expected_rest for iv in ivs)
 
 
-def _eval_row(row: dict, backend: str, model: str | None, k: int, cache_dir: str | None, pool: list) -> dict:
+def _eval_row(
+    row: dict, backend: str, model: str | None, k: int, cache_dir: str | None, pool: list
+) -> dict:
     title = row.get("title", "")
     description = row.get("description", "")
     text = f"{title}. {description}"
@@ -175,8 +175,7 @@ def _write_report(rows, results, backend, model, k, per_kind, n, n_correct, out_
         "",
         f"backend: {backend}, model: {model or '(default)'}, k: {k}, n rows: {n}",
         "",
-        f"Overall accuracy: {n_correct}/{n}"
-        + (f" ({n_correct / n:.1%})" if n else ""),
+        f"Overall accuracy: {n_correct}/{n}" + (f" ({n_correct / n:.1%})" if n else ""),
         "",
         "## Per-kind accuracy",
         "",
@@ -238,14 +237,18 @@ def main(argv=None) -> int:
 
     cache_dir = None if args.no_cache else _default_cache_dir()
 
-    rows, results = run_eval(args.eval_path, args.limit, args.backend, args.model, args.k, cache_dir)
+    rows, results = run_eval(
+        args.eval_path, args.limit, args.backend, args.model, args.k, cache_dir
+    )
 
     n = len(results)
     n_correct = sum(1 for r in results if r["correct"])
 
     per_kind: dict = {}
     for row, result in zip(rows, results):
-        rule_spec = spec_mod.parse_spec(f"{row['title']}\n{row['description']}", row.get("machines"))
+        rule_spec = spec_mod.parse_spec(
+            f"{row['title']}\n{row['description']}", row.get("machines")
+        )
         kind = (
             result["extracted"].get("kind")
             if result["extracted"]

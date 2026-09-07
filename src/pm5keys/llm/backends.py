@@ -86,9 +86,7 @@ class ClaudeCliBackend:
         if which_path:
             return which_path
 
-        raise ExtractError(
-            "claude CLI not found: set PM5KEYS_CLAUDE_BIN or put 'claude' on PATH"
-        )
+        raise ExtractError("claude CLI not found: set PM5KEYS_CLAUDE_BIN or put 'claude' on PATH")
 
     def complete(self, prompt: str, model: str | None) -> str:
         claude_path = self._resolve_path()
@@ -161,9 +159,7 @@ class AnthropicBackend:
 
         api_key = os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
-            raise ExtractError(
-                "ANTHROPIC_API_KEY is not set; export it or use --llm claude-cli"
-            )
+            raise ExtractError("ANTHROPIC_API_KEY is not set; export it or use --llm claude-cli")
 
         self._client = anthropic.Anthropic(api_key=api_key)
 

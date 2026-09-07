@@ -121,9 +121,25 @@ class DescriptionVariantsTest(unittest.TestCase):
 class SequenceStatsTest(unittest.TestCase):
     def test_stats_computed_correctly(self):
         rows = [
-            _row("2022-01-01", "All Machines", "A", "a", "B-2D-A", pm5_expanded=["B", "D", "D", "A"]),
-            _row("2022-01-02", "All Machines", "B", "b", "B-3D-A", pm5_expanded=["B", "D", "D", "D", "A", "E"]),
-            _row("2022-01-03", "BikeErg", "C", "c", "C-2A", pm5_expanded=["C", "A", "A", "E", "E", "E", "E", "E", "E", "E", "E"]),
+            _row(
+                "2022-01-01", "All Machines", "A", "a", "B-2D-A", pm5_expanded=["B", "D", "D", "A"]
+            ),
+            _row(
+                "2022-01-02",
+                "All Machines",
+                "B",
+                "b",
+                "B-3D-A",
+                pm5_expanded=["B", "D", "D", "D", "A", "E"],
+            ),
+            _row(
+                "2022-01-03",
+                "BikeErg",
+                "C",
+                "c",
+                "C-2A",
+                pm5_expanded=["C", "A", "A", "E", "E", "E", "E", "E", "E", "E", "E"],
+            ),
         ]
         stats = check_consistency.sequence_stats(rows)
 

@@ -233,9 +233,7 @@ _CLOSE_MARKER = "******"
 
 _PM_LINE_RE = re.compile(r"^(PM3/PM4/PM5|PM3/PM4|PM5)\s*:\s*(.+)$")
 _HONORBOARD_URL_RE = re.compile(r"https?://\S*log\.concept2\.com/wod/\S*")
-_BUTTON_NOISE_PREFIX_RE = re.compile(
-    r"^wod_email\.button_press_title\S*"
-)
+_BUTTON_NOISE_PREFIX_RE = re.compile(r"^wod_email\.button_press_title\S*")
 
 
 def _split_lines(text: str) -> list[str]:
@@ -362,7 +360,9 @@ def parse_text(text: str, date: str, source: str = "email") -> dict:
                 break
 
     if open_idx is not None:
-        title_desc_lines = lines[open_idx + 1 : close_idx] if close_idx is not None else lines[open_idx + 1 :]
+        title_desc_lines = (
+            lines[open_idx + 1 : close_idx] if close_idx is not None else lines[open_idx + 1 :]
+        )
         title, description = _extract_title_description(title_desc_lines)
         group_search_lines = lines[close_idx + 1 :] if close_idx is not None else []
     else:
@@ -388,8 +388,7 @@ def parse_text(text: str, date: str, source: str = "email") -> dict:
                 keyseq.validate(seq)
             except ValueError as exc:
                 warnings.append(
-                    f"{date}: invalid {key} sequence for group "
-                    f"{group['machines']!r}: {exc}"
+                    f"{date}: invalid {key} sequence for group {group['machines']!r}: {exc}"
                 )
 
     record = {
@@ -455,7 +454,9 @@ def _run_cli(argv: list[str]) -> int:
         description="Parse Concept2 WOD web pages into structured records"
     )
     parser.add_argument("target", help="a directory of *.html files, or a single .html file")
-    parser.add_argument("--json", metavar="OUT.jsonl", help="write one JSON record per line to this file")
+    parser.add_argument(
+        "--json", metavar="OUT.jsonl", help="write one JSON record per line to this file"
+    )
     parser.add_argument("--show", metavar="DATE", help="print the single record for DATE as JSON")
     args = parser.parse_args(argv)
 

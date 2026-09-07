@@ -62,7 +62,9 @@ class ClaudeCliBackendTest(unittest.TestCase):
             result = backend.complete("some prompt", "sonnet")
         self.assertEqual(result, '{"kind": "single_distance"}')
         cmd = run_mock.call_args.args[0]
-        self.assertEqual(cmd, ["/fake/claude", "-p", "--model", "sonnet", "--output-format", "json"])
+        self.assertEqual(
+            cmd, ["/fake/claude", "-p", "--model", "sonnet", "--output-format", "json"]
+        )
         self.assertEqual(run_mock.call_args.kwargs["input"], "some prompt")
 
     def test_complete_defaults_model_to_sonnet_when_none(self):
@@ -75,7 +77,9 @@ class ClaudeCliBackendTest(unittest.TestCase):
 
     def test_complete_raises_on_nonzero_exit(self):
         backend = be.ClaudeCliBackend(claude_path="/fake/claude")
-        with mock.patch("subprocess.run", return_value=_fake_completed("", returncode=1, stderr="boom")):
+        with mock.patch(
+            "subprocess.run", return_value=_fake_completed("", returncode=1, stderr="boom")
+        ):
             with self.assertRaises(be.ExtractError):
                 backend.complete("prompt", "sonnet")
 
@@ -83,7 +87,9 @@ class ClaudeCliBackendTest(unittest.TestCase):
         import subprocess
 
         backend = be.ClaudeCliBackend(claude_path="/fake/claude")
-        with mock.patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="claude", timeout=120)):
+        with mock.patch(
+            "subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="claude", timeout=120)
+        ):
             with self.assertRaises(be.ExtractError):
                 backend.complete("prompt", "sonnet")
 
@@ -95,7 +101,9 @@ class ClaudeCliBackendTest(unittest.TestCase):
 
     def test_complete_raises_on_is_error_envelope(self):
         backend = be.ClaudeCliBackend(claude_path="/fake/claude")
-        with mock.patch("subprocess.run", return_value=_fake_completed(_envelope("bad", is_error=True))):
+        with mock.patch(
+            "subprocess.run", return_value=_fake_completed(_envelope("bad", is_error=True))
+        ):
             with self.assertRaises(be.ExtractError):
                 backend.complete("prompt", "sonnet")
 
@@ -192,7 +200,9 @@ class AnthropicBackendTest(unittest.TestCase):
         self.assertEqual(kwargs["model"], be.DEFAULT_ANTHROPIC_MODEL)
 
     def test_complete_raises_extract_error_on_sdk_exception(self):
-        fake_module = _install_fake_anthropic_module(create_side_effect=RuntimeError("network down"))
+        fake_module = _install_fake_anthropic_module(
+            create_side_effect=RuntimeError("network down")
+        )
         with mock.patch.dict(sys.modules, {"anthropic": fake_module}):
             with mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-fake"}):
                 backend = be.AnthropicBackend()

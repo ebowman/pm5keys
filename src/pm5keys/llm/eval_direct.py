@@ -122,9 +122,7 @@ def build_examples(title: str, pool: list, k: int = DEFAULT_K) -> list:
 def _format_examples(examples: list) -> str:
     blocks = []
     for entry in examples:
-        blocks.append(
-            f"Workout: {entry['title']}. {entry['description']}\nPM5: {entry['pm5']}"
-        )
+        blocks.append(f"Workout: {entry['title']}. {entry['description']}\nPM5: {entry['pm5']}")
     return "\n\n".join(blocks)
 
 
@@ -293,7 +291,9 @@ def _load_rows(path: str) -> list:
     return [r for r in rows if r.get("machines") != "BikeErg"]
 
 
-def _eval_row(row: dict, backend, model: str | None, k: int, pool: list, cache_dir: str | None) -> dict:
+def _eval_row(
+    row: dict, backend, model: str | None, k: int, pool: list, cache_dir: str | None
+) -> dict:
     title = row.get("title", "")
     description = row.get("description", "")
     gold = row.get("pm5", "")
@@ -378,7 +378,12 @@ def print_summary(summary: dict, backend_name: str, model: str | None, k: int) -
 
 
 def write_report(
-    results: list, summary: dict, backend_name: str, model: str | None, k: int, out_path: str = DEFAULT_OUT_PATH
+    results: list,
+    summary: dict,
+    backend_name: str,
+    model: str | None,
+    k: int,
+    out_path: str = DEFAULT_OUT_PATH,
 ) -> None:
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     n = summary["n"]
@@ -450,7 +455,9 @@ def write_report(
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--eval", default=DEFAULT_EVAL_PATH, help="eval.jsonl-shaped file")
-    parser.add_argument("--train", default=DEFAULT_TRAIN_PATH, help="train.jsonl-shaped file (few-shot pool)")
+    parser.add_argument(
+        "--train", default=DEFAULT_TRAIN_PATH, help="train.jsonl-shaped file (few-shot pool)"
+    )
     parser.add_argument("--limit", type=int, default=None, help="limit eval to first N rows")
     parser.add_argument(
         "--backend",
@@ -466,7 +473,9 @@ def main(argv=None) -> int:
 
     cache_dir = None if args.no_cache else _default_cache_dir()
 
-    results = run_eval(args.eval, args.train, args.limit, args.backend, args.model, args.k, cache_dir)
+    results = run_eval(
+        args.eval, args.train, args.limit, args.backend, args.model, args.k, cache_dir
+    )
     summary = summarize(results)
     print_summary(summary, args.backend, args.model, args.k)
     write_report(results, summary, args.backend, args.model, args.k, args.out)

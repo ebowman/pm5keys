@@ -36,9 +36,7 @@ class ExpandCompressRoundTripTest(unittest.TestCase):
 
     def test_rest_8x500_sequence(self):
         expanded = keyseq.expand(REST_8X500)
-        self.assertEqual(
-            expanded, ["B", "D", "D", "A", "A", "A", "A", "A", "B", "B", "E"]
-        )
+        self.assertEqual(expanded, ["B", "D", "D", "A", "A", "A", "A", "A", "B", "B", "E"])
         self.assertEqual(keyseq.compress(expanded), REST_8X500)
         self.assertEqual(keyseq.canonical(REST_8X500), REST_8X500)
 

@@ -98,8 +98,11 @@ class RunFetchTest(unittest.TestCase):
     def test_http_500_retried_three_times_then_recorded(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             error = urllib.error.HTTPError(
-                url="http://example.com", code=500, msg="Internal Server Error",
-                hdrs=None, fp=None,
+                url="http://example.com",
+                code=500,
+                msg="Internal Server Error",
+                hdrs=None,
+                fp=None,
             )
             fetch_fn = mock.Mock(side_effect=error)
             sleep_fn = mock.Mock()
@@ -132,12 +135,13 @@ class RunFetchTest(unittest.TestCase):
     def test_http_500_succeeds_on_retry(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             error = urllib.error.HTTPError(
-                url="http://example.com", code=500, msg="Internal Server Error",
-                hdrs=None, fp=None,
+                url="http://example.com",
+                code=500,
+                msg="Internal Server Error",
+                hdrs=None,
+                fp=None,
             )
-            fetch_fn = mock.Mock(
-                side_effect=[error, (200, b"<html>PM5 recovered</html>")]
-            )
+            fetch_fn = mock.Mock(side_effect=[error, (200, b"<html>PM5 recovered</html>")])
 
             result = fetch_wod.run_fetch(
                 dates=["2022-07-17"],
@@ -158,8 +162,11 @@ class RunFetchTest(unittest.TestCase):
     def test_http_404_not_retried(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             error = urllib.error.HTTPError(
-                url="http://example.com", code=404, msg="Not Found",
-                hdrs=None, fp=None,
+                url="http://example.com",
+                code=404,
+                msg="Not Found",
+                hdrs=None,
+                fp=None,
             )
             fetch_fn = mock.Mock(side_effect=error)
 
@@ -219,9 +226,7 @@ class RunFetchTest(unittest.TestCase):
     def test_network_error_succeeds_on_retry(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             error = urllib.error.URLError("temporary failure")
-            fetch_fn = mock.Mock(
-                side_effect=[error, error, (200, b"<html>PM5 recovered</html>")]
-            )
+            fetch_fn = mock.Mock(side_effect=[error, error, (200, b"<html>PM5 recovered</html>")])
 
             result = fetch_wod.run_fetch(
                 dates=["2022-07-16"],
@@ -246,8 +251,11 @@ class RunFetchTest(unittest.TestCase):
                 f.write("2022-06-15 500\n")
 
             error = urllib.error.HTTPError(
-                url="http://example.com", code=500, msg="Internal Server Error",
-                hdrs=None, fp=None,
+                url="http://example.com",
+                code=500,
+                msg="Internal Server Error",
+                hdrs=None,
+                fp=None,
             )
             fetch_fn = mock.Mock(side_effect=error)
 
@@ -342,19 +350,27 @@ class MainExitCodeTest(unittest.TestCase):
                 f.write("already fetched")
 
             error = urllib.error.HTTPError(
-                url="http://example.com", code=500, msg="Internal Server Error",
-                hdrs=None, fp=None,
+                url="http://example.com",
+                code=500,
+                msg="Internal Server Error",
+                hdrs=None,
+                fp=None,
             )
 
-            with mock.patch.object(
-                fetch_wod, "_real_fetch_fn", side_effect=error
-            ), mock.patch.object(fetch_wod.time, "sleep", return_value=None):
+            with (
+                mock.patch.object(fetch_wod, "_real_fetch_fn", side_effect=error),
+                mock.patch.object(fetch_wod.time, "sleep", return_value=None),
+            ):
                 rc = fetch_wod.main(
                     [
-                        "--since", "2022-07-01",
-                        "--until", "2022-07-08",
-                        "--out", tmpdir,
-                        "--delay", "0",
+                        "--since",
+                        "2022-07-01",
+                        "--until",
+                        "2022-07-08",
+                        "--out",
+                        tmpdir,
+                        "--delay",
+                        "0",
                     ]
                 )
 
@@ -363,19 +379,27 @@ class MainExitCodeTest(unittest.TestCase):
     def test_exit_1_when_nothing_present_and_everything_fails(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             error = urllib.error.HTTPError(
-                url="http://example.com", code=500, msg="Internal Server Error",
-                hdrs=None, fp=None,
+                url="http://example.com",
+                code=500,
+                msg="Internal Server Error",
+                hdrs=None,
+                fp=None,
             )
 
-            with mock.patch.object(
-                fetch_wod, "_real_fetch_fn", side_effect=error
-            ), mock.patch.object(fetch_wod.time, "sleep", return_value=None):
+            with (
+                mock.patch.object(fetch_wod, "_real_fetch_fn", side_effect=error),
+                mock.patch.object(fetch_wod.time, "sleep", return_value=None),
+            ):
                 rc = fetch_wod.main(
                     [
-                        "--since", "2022-07-01",
-                        "--until", "2022-07-03",
-                        "--out", tmpdir,
-                        "--delay", "0",
+                        "--since",
+                        "2022-07-01",
+                        "--until",
+                        "2022-07-03",
+                        "--out",
+                        tmpdir,
+                        "--delay",
+                        "0",
                     ]
                 )
 

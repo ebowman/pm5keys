@@ -223,7 +223,9 @@ class DirectRunEvalTest(unittest.TestCase):
                 for row in train_rows:
                     f.write(json.dumps(row) + "\n")
 
-            with mock.patch.object(ed, "resolve_backend", return_value=FakeBackend(["PM5: B-D-A-E"])):
+            with mock.patch.object(
+                ed, "resolve_backend", return_value=FakeBackend(["PM5: B-D-A-E"])
+            ):
                 results = ed.run_eval(
                     eval_path,
                     train_path,
@@ -240,9 +242,18 @@ class DirectRunEvalTest(unittest.TestCase):
 
     def test_summarize_counts(self):
         results = [
-            {"llm": {"exact": True, "semantic": True, "unparsable": False}, "pipeline": {"exact": True, "semantic": True}},
-            {"llm": {"exact": False, "semantic": True, "unparsable": False}, "pipeline": {"exact": False, "semantic": True}},
-            {"llm": {"exact": False, "semantic": False, "unparsable": True}, "pipeline": {"exact": False, "semantic": False}},
+            {
+                "llm": {"exact": True, "semantic": True, "unparsable": False},
+                "pipeline": {"exact": True, "semantic": True},
+            },
+            {
+                "llm": {"exact": False, "semantic": True, "unparsable": False},
+                "pipeline": {"exact": False, "semantic": True},
+            },
+            {
+                "llm": {"exact": False, "semantic": False, "unparsable": True},
+                "pipeline": {"exact": False, "semantic": False},
+            },
         ]
         summary = ed.summarize(results)
         self.assertEqual(summary["n"], 3)
