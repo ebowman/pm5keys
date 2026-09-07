@@ -22,7 +22,7 @@ from pm5keys import compile_keys as ck
 from pm5keys.spec import parse_spec
 
 _DOCS_DIR = os.path.join(os.path.dirname(__file__), "..", "docs")
-_EXAMPLE_DOCS = ["notation.md", "pm5-model.md"]
+_EXAMPLE_DOCS = ["notation.md", "pm5-model.md", "verification.md"]
 
 _HEADER_RE = re.compile(r"^\|\s*Text\s*\|\s*PM5\s*\|\s*$")
 _SEPARATOR_RE = re.compile(r"^\|\s*-+\s*\|\s*-+\s*\|\s*$")

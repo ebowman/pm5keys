@@ -138,9 +138,9 @@ evidence table behind these numbers.
   whether digit fields wrap or clamp at 0/9) each rest on a single
   observed data point rather than broad corpus coverage — see the
   evidence table in [docs/pm5-model.md](docs/pm5-model.md#the-evidence-table).
-- Hardware verification against a real PM5 monitor is pending; a
-  verification guide is coming — see `docs/verification.md` (not yet
-  written).
+- Hardware verification against a real PM5 monitor is pending; see
+  [docs/verification.md](docs/verification.md) for the checklist
+  (pending: not yet pressed on hardware).
 
 ## Docs
 

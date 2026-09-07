@@ -271,7 +271,8 @@ report.
 ## Verifying on your own monitor
 
 See [verification.md](verification.md) for how to check a `pm5keys`-
-generated sequence against a real PM5 (coming).
+generated sequence against a real PM5 (pending: not yet pressed on
+hardware).
 
 ## How this was derived
 

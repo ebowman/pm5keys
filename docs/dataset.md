@@ -257,4 +257,5 @@ public web pages. Parsing errors are possible despite the consistency
 checks described above (`pm5keys-data check`, `crosscheck`, and
 `compile_keys.py --verify`). Always verify any generated button-press
 sequence on your own monitor before relying on it — see
-[verification.md](verification.md) (coming) for how.
+[verification.md](verification.md) (pending: not yet pressed on
+hardware) for how.
