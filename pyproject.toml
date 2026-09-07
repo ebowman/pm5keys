@@ -37,6 +37,7 @@ dev = ["ruff", "build"]
 
 [project.scripts]
 pm5keys = "pm5keys.cli:main"
+pm5keys-data = "pm5keys.data.__main__:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
@@ -46,3 +47,4 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 pm5keys = ["*.md"]
+"pm5keys.data" = ["dataset_unique.jsonl"]

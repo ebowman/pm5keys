@@ -47,7 +47,7 @@ computed field digit > 9 register meaning the value has too many
 digits for the screen's field count, or rest > 99:59).
 
 CLI:
-    python3 -m pm5keys.compile_keys --verify spec_parsed.jsonl
+    python3 -m pm5keys.compile_keys --verify spec_parsed.jsonl [--out data/reports/compile_report.md]
         For every row, (i) runs the simulator on the GOLD sequence and
         checks same_workout(sim(gold), spec) -- this validates
         pm5_model's model; (ii) compiles the spec and compares to gold
@@ -55,8 +55,10 @@ CLI:
         same_workout(sim(compiled), sim(gold)). Categorises every row
         as EXACT / EQUIVALENT / GOLD_VARIABLE / GOLD_MISMATCH /
         MODEL_ERROR (see _classify_row's docstring for the precise
-        rules), prints counts per category, and writes
-        compile_report.md with the per-row table.
+        rules), prints counts per category, and writes the report
+        (`--out`, default `data/reports/compile_report.md` relative to
+        the current working directory -- this module never writes next
+        to its own file) with the per-row table.
 """
 
 from __future__ import annotations
@@ -435,7 +437,10 @@ def _classify_row(spec: dict, gold_seq: str) -> dict:
     }
 
 
-def _verify(path: str) -> int:
+_DEFAULT_VERIFY_OUT = os.path.join("data", "reports", "compile_report.md")
+
+
+def _verify(path: str, out_path: str = _DEFAULT_VERIFY_OUT) -> int:
     with open(path, encoding="utf-8") as f:
         rows = [json.loads(line) for line in f if line.strip()]
 
@@ -455,13 +460,12 @@ def _verify(path: str) -> int:
         print(f"  {category}: {counts.get(category, 0)}")
     print(f"  TOTAL: {len(rows)}")
 
-    _write_report(report_rows)
+    _write_report(report_rows, out_path)
 
     return 0
 
 
-def _write_report(report_rows) -> None:
-    out_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "compile_report.md")
+def _write_report(report_rows, out_path: str = _DEFAULT_VERIFY_OUT) -> None:
     lines = [
         "# compile_keys.py --verify report",
         "",
@@ -499,14 +503,36 @@ def _write_report(report_rows) -> None:
             lines.append(f"- sim(compiled): `{json.dumps(result['sim_compiled'])}`")
         lines.append("")
 
+    out_dir = os.path.dirname(out_path)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
 
 
 def _main(argv: list) -> int:
-    if len(argv) == 3 and argv[1] == "--verify":
-        return _verify(argv[2])
-    print("usage: python3 compile_keys.py --verify <spec_parsed.jsonl>", file=sys.stderr)
+    if len(argv) >= 3 and argv[1] == "--verify":
+        spec_path = argv[2]
+        out_path = _DEFAULT_VERIFY_OUT
+        rest = argv[3:]
+        i = 0
+        while i < len(rest):
+            if rest[i] == "--out" and i + 1 < len(rest):
+                out_path = rest[i + 1]
+                i += 2
+            else:
+                print(
+                    "usage: python3 -m pm5keys.compile_keys --verify <spec_parsed.jsonl> "
+                    f"[--out {_DEFAULT_VERIFY_OUT}]",
+                    file=sys.stderr,
+                )
+                return 1
+        return _verify(spec_path, out_path)
+    print(
+        "usage: python3 -m pm5keys.compile_keys --verify <spec_parsed.jsonl> "
+        f"[--out {_DEFAULT_VERIFY_OUT}]",
+        file=sys.stderr,
+    )
     return 1
 
 

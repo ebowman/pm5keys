@@ -1,0 +1,658 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+   "http://www.w3.org/TR/html4/loose.dtd">
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">         
+     <title>Concept2 Workout of the Day</title>
+     <style type="text/css">
+     body {
+          width:100% !important; 
+          -webkit-text-size-adjust:100%; 
+          -ms-text-size-adjust:100%; 
+          margin:0; 
+          padding:0;
+     }
+    table td {
+           border-collapse: collapse;
+     }
+    table { 
+          border-collapse: collapse; 
+          mso-table-lspace: 0pt; 
+          mso-table-rspace: 0pt; 
+     }         
+/****** title w/ view in browser definition ******/    
+     td.title p {
+          font-family: Arial, Helvetica, sans-serif;
+          font-size: 13px; 
+          color: #000000;
+          line-height: 1.3;
+     }
+     td.title span.gray {     
+          font-family: Arial, Helvetica, sans-serif;
+          font-size: 10px;
+          color: #636363;
+     }
+/****** navigation. Base style followed by header nav and footer nav specifics ******/
+     td.nav a {
+          font-family: Arial, Helvetica, sans-serif;
+          font-size: 16px;
+          color: #acb133;
+          text-decoration: none;
+          font-weight: bold;
+          margin-top: 0;
+          margin-right: 0;
+          margin-bottom: 0;
+          margin-left: 0;
+          padding-top: 0;
+          padding-right: 0;
+          padding-bottom: 0;
+          padding-left: 0;
+     }
+     td.nav a:visited {
+          color: #acb133 !important;
+     }
+     td.nav a.last-item {
+          padding-right: 20px;
+          border-right: 0;
+     }
+     td.header a {
+          padding-left: 20px;
+     }
+     td.footer a {
+          border-right: 1px solid #acacac;
+          padding-right: 10px;
+          padding-left: 10px;      
+     }    
+     tr.mobile-show, h1.mobile-show {
+          display: none;
+     }
+    img.mobile-show {
+          display: none;
+          width: 0px;
+          height: 0px;        
+     }              
+/****** h1: base style followed by per-component specifics ******/
+     td h1 {
+          font-family: Arial, Gadget, sans-serif;
+          font-size: 27px;
+          font-weight: 900;
+          color: #242424;
+          line-height: 26px;       
+          margin-top: 0;
+          margin-right: 0;
+          margin-bottom: 0;
+          margin-left: 0;
+          padding-top: 0;
+          padding-right: 0;
+          padding-bottom: 0;
+          padding-left: 0;
+          text-transform: uppercase;
+     }
+     td h1.sub {
+          font-size: 22px;
+          font-weight: bold;
+          text-transform: none;
+          margin-bottom: 8px;
+     }
+     td.wod-name {
+          font-family: Arial, Helvetica, sans-serif;
+          font-weight: bold;
+          font-size: 18px;
+          line-height: 22px;
+          color: #000000;
+          margin-top: 0;
+          margin-right: 0;
+          margin-bottom: 0;
+          margin-left: 0;
+          padding-top: 0;
+          padding-right: 0;
+          padding-bottom: 0;
+          padding-left: 0;         
+     }
+     td.feature h1 {
+          margin-top: 14px;
+     }
+/****** h2: base sytle followed by per-component specifics  ******/
+     td h2 {
+          font-family: Arial, Helvetica, sans-serif;
+          font-weight: bold;
+          font-size: 18px;
+          line-height: 22px;
+          color: #000000;
+          margin-top: 0;
+          margin-right: 0;
+          margin-bottom: 0;
+          margin-left: 0;
+          padding-top: 0;
+          padding-right: 0;
+          padding-bottom: 0;
+          padding-left: 0;         
+     }
+     td h2.sub {
+          font-size: 14px;
+     }
+     td.feature h2 {
+          padding-top: 12px;
+     }
+     td.wod-name h2, td.buttons h2 {
+          padding-top:0;
+          text-transform: uppercase;
+     }
+     td.buttons h2 {
+          margin-bottom: 6px;
+     }
+/****** h3: base sytle followed by per-component specifics  ******/
+     td h3 {
+          font-family: Arial, Helvetica, sans-serif;
+          font-weight: bold;
+          font-size: 16px;
+          line-height: 20px;
+          color: #000000;
+          margin-top: 0;
+          margin-right: 0;
+          margin-bottom: 0;
+          margin-left: 0;
+          padding-top: 0;
+          padding-right: 0;
+          padding-bottom: 0;
+          padding-left: 0;         
+     }
+     td.buttons h3 {
+          margin-top: 20px;
+          margin-bottom: 6px;
+     }
+/****** p: base style followed by per component-specifics ******/
+     td p, li, a:visited {
+          font-family: Arial, Helvetica, sans-serif;
+          font-size: 14px;
+          line-height: 22px;
+          color: #000000;
+          margin-top: 0;
+          margin-right: 0;
+          margin-bottom: 0;
+          margin-left: 0;
+          padding-top: 0;
+          padding-right: 0;
+          padding-bottom: 0;
+          padding-left: 0;         
+     }
+     td.feature p {
+          margin-top: 12px;
+     }
+     td.legal p {
+          font-size: 12px;
+          color: #636363;
+     }
+/****** cta button and link styles ******/   
+     td.cta-btn a, span.more-link a, a.cta-btn {
+          font-family: Arial, Helvetica, sans-serif;
+          font-size: 14px;
+          font-weight: bold;
+          color: #ffffff;
+          margin-top: 0;
+          margin-right: 0;
+          margin-bottom: 0;
+          margin-left: 0;
+          padding-top: 10px;
+          padding-right: 10px;
+          padding-bottom: 10px;
+          padding-left: 10px;
+          text-transform: uppercase;
+          text-decoration: none;        
+     }
+     td.feature a:visted {
+          color: #000000;
+     }
+    td.nav a:visited {
+          color: #999e2e !important;
+    }
+     span.more-link a {
+          color: #0071b6;
+          display: block;
+          padding-left: 22px;
+          padding-top: 22px;
+     }
+
+     span.more-link a:visited {
+          color: #acb133 !important;
+     }
+/****** story divider ******/ 
+     .divider {
+          border-bottom: 1px solid #a1a1a1;
+     }
+     td.contact p a {
+          font-family: Arial, Helvetica, sans-serif;
+          font-size: 14px;
+          color: #000000;
+          margin-top: 0;
+          margin-bottom: 0;
+          padding-top: 0;
+          padding-bottom: 0;
+          padding-left: 0;
+     }
+     td.contact p a:visited {
+          color: #000000 !important;
+     }
+     td.legal a, .legal {
+          color: #acb133;
+          text-decoration: none;
+     }
+     td.legal a:visited {
+          color: #acb133 !important;
+     }
+     td.notice {
+          background: #F8FFF0;
+          border: 2px solid #AFBD22;
+          color: #0B191A;
+          padding: 8px;
+     }
+     @media  only screen and (max-width: 640px) {
+          table.table, td.cell, td.cell img {
+               width: 320px !important;
+         }
+          td.header a {
+               padding-left: 8px!important;
+          }
+          td.header a.first-item {
+               padding-left: 0!important;
+          }
+          td.header a.last-item {
+               padding-right: 0!important;
+          }
+          td.contact p {
+               line-height: 22px!important;
+          }
+          td.social img {
+               width: 44px!important;
+          }
+          td.wod img.icon {
+               width: 25px!important;
+          }
+          span.more-link a {
+               padding-left: 0!important;
+          }
+          /****** tools ******/               
+          td.empty {
+               width: 0!important;
+          }
+          .mobile-hide {
+               display: none!important;
+          }
+          tr.mobile-show, h1.mobile-show {
+               display: block!important;
+         }
+          tr.mobile-show td.nav {
+               border-top: 1px solid #acb133!important;
+               border-right: 1px solid #acb133!important;
+               border-bottom: 0!important;
+               border-left: 1px solid #acb133!important;                                             
+               padding: 10px!important;
+          }
+          tr.mobile-show td.nav.last-item {
+               border-bottom: 1px solid #acb133!important;
+          } 
+          img.mobile-show {
+                    display: block!important;
+                    width: 320px;
+                    height: auto!important;       
+               }          
+     }
+     @media  only screen and (max-device-width: 320px) {
+          table.table, td.cell, td.cell img {
+               width: 300px !important;
+         }
+          td.header a {
+               padding-left: 8px!important;
+          }
+          td.social img {
+               width: 44px!important;
+          }
+          td.wod img.icon {
+               width: 25px!important;
+          }
+     }    
+     </style>   
+</head>
+<body bgcolor="#ffffff" topmargin="0" leftmargin="0" marginheight="0" marginwidth="0" style="-webkit-font-smoothing: antialiased;width:100% !important;background:#ffffff;-webkit-text-size-adjust:none;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff">
+<tr>
+     <td width="100%" align="left" bgcolor="#ffffff">
+      <table width="600" cellpadding="0" cellspacing="0" border="0" align="center" class="table">
+<!-- Title -->           
+        <tr>
+               <td width="600" class="cell">         
+                <table width="600" cellpadding="0" cellspacing="0" border="0" class="table">
+                <tr>
+                <td width="600" height="10" class="cell">&nbsp;</td>
+                </tr>
+                 <tr>
+                      <td width="600" class="cell title">
+                    <p>Concept2 Workout of the Day <strong>September  7, 2026</strong><br>
+                    <span class="gray">Having trouble viewing this message? <webversion style="text-decoration: underline; color: #636363;"><strong style="font-weight: normal;">View in Browser</strong></webversion></span></p>
+                    </td>
+                 </tr>
+                    </table>
+            </td>
+     </tr>
+<!-- End Title -->       
+<!-- Spacer -->          
+        <tr>
+          <td width="600" height="35" class="cell">&nbsp;</td>
+        </tr>
+<!-- End Spacer -->
+<!-- Logo -->
+        <tr>
+          <td width="600" class="cell">                     
+               <table width="600" cellpadding="0" cellspacing="0" border="0" class="table">
+                    <tr>
+                         <td width="600" class="cell logo" align="center">
+                              <a href="http://www.concept2.com">
+                                   <img border="0" src="https://utilities.concept2.com/images/wod-email/logo.png" width="254" alt="Concept2"></a>
+                         </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+<!-- End Logo -->        
+<!-- Spacer -->         
+        <tr>
+          <td width="600" height="22" class="cell">&nbsp;</td>
+        </tr>
+<!-- End Spacer -->               
+<!-- Body  -->      
+        <tr>
+          <td>
+               <table>
+                    <tr>
+                    <td width="600" class="cell">
+                         <table width="600" cellpadding="0" cellspacing="0" border="0" class="table">
+                         <tr class="mobile-show">        
+                              <td width="600" class="cell">
+                              <a href="http://www.concept2.com/indoor-rowers/training/wod"><img src="https://utilities.concept2.com/images/wod-email/header/en/mobile/generic.png" class="mobile-show" width="600" style="height: auto;" border="0"></a>          
+                              </td>
+                         </tr>
+                         <tr class="mobile-hide">        
+                              <td width="600" class="cell">
+                              <a href="http://www.concept2.com/indoor-rowers/training/wod"><img src="https://utilities.concept2.com/images/wod-email/header/en/desktop/generic.png" width="600" style="height: auto;" border="0"></a>
+                              </td>
+                         </tr>
+                         <!--[if mso]>
+                         <tr>
+                              <td height="3">&nbsp;</td>
+                         </tr>
+                         <![endif]-->                                                 
+                         <tr>
+                              <td width="600" class="cell feature">
+                                   <h1>September  7, 2026</h1>
+                                   <h1 class="sub">Workout of the Day</h1>
+                              </td>
+                         </tr>                  
+                         <!--[if mso]>
+                         <tr>
+                              <td height="3">&nbsp;</td>
+                         </tr>
+                         <![endif]-->   
+                         <tr>
+                              <td width="600" class="cell feature">
+                                   <h2 class="sub">1/2/3/4/5/4/3/2/1 minutes with 2 minutes rest</h2>
+                                   <p>An interval pyramid starting at 1 minute, increasing by 1 minute each interval to a maximum of 5 minutes and then back down again.  2 minutes rest between intervals.</p>
+
+
+                              </td>
+                         </tr>
+                         <!-- Spacer -->         
+                         <tr>
+                              <td width="600" height="11" class="cell">&nbsp;</td>
+                         </tr>
+                         <!--[if mso]>
+                         <tr>
+                              <td height="3">&nbsp;</td>
+                         </tr>
+                         <![endif]-->   
+                              <tr>
+                                   <td width="600" class="cell feature buttons">                      
+                                   <h2>Honorboard</h2>
+                                   <p>See what other members of the Concept2 community have done for today's workout.</p>
+                              </td>
+                         </tr>
+                         <!-- Spacer -->         
+                         <tr>
+                              <td width="600" height="11" class="cell">&nbsp;</td>
+                         </tr> 
+                         <!-- End Spacer -->
+                              <tr>
+                                   <td>                                    
+                                   <table width="600" cellpadding="0" cellspacing="0" border="0" class="table">
+                                   <tr>
+                                        <td width="36%" height="40" class="cell cta-btn" bgcolor="#acb133" align="center">
+                                             <a href="https://log.concept2.com/wod/2026-09-07/rowerg" class="cta-btn">&gt; Today's Honorboard</a></td>
+                                        <td class="empty" width="64%">&nbsp;</td>
+                                   </tr>
+                                   </table>
+                              </td>                              
+                         </tr>                
+                    <!-- Spacer w/ Divider -->
+                              <tr>
+                                   <td width="600" height="22" class="cell divider">&nbsp;</td>
+                         </tr>
+                    <!-- End Spacer w/ Divider -->
+                    <!-- Spacer -->         
+                         <tr>
+                              <td width="600" height="11" class="cell">&nbsp;</td>
+                         </tr>
+                         <!-- End Spacer -->                                                                                                
+                         <!--[if mso]>
+                         <tr>
+                              <td height="3">&nbsp;</td>
+                         </tr>
+                         <![endif]-->   
+                         <tr>
+                              <td width="600" class="cell feature buttons">                      
+                                   <h2>Setting Up The Workout</h2>
+                                   <p>Download <a href="https://www.concept2.com/ergdata">ErgData</a>, our free app, to help program the workout easily into your monitor, as well as record your effort so you can track your progress. Note: Concept2 worked with the American Council of the Blind (ACB) to help ensure accessibility to people who are blind or have low vision.<br><br>If you are unable to download ErgData, you can use the button press sequence listed below. Starting from the Main Menu, "A" corresponds to the top gray button on the right, "B" corresponds to the second gray button on the right, and so on down through "E". Note: 4A, for example, means press the A button four times in succession.</p>
+                              </td>
+                         </tr>
+                         <!-- Spacer -->         
+                         <tr>
+                              <td width="600" height="11" class="cell">&nbsp;</td>
+                         </tr>
+                         <!-- End Spacer -->                                                                                                
+                         <!--[if mso]>
+                         <tr>
+                              <td height="3">&nbsp;</td>
+                         </tr>
+                         <![endif]-->   
+                                                  <tr>
+                             <td width="600" class="cell feature buttons">
+                               <p><strong>All Machines</strong>:
+                                                                     <p><strong>PM3/PM4</strong>: B-D-E-D-4A-2B-E-D-B-E-D-B-E-D-B-E-D-B-E-D-C-E-D-C-E-D-C-E-D-C-2E<br>
+                                       <strong>PM5</strong>: B-4D-4A-2B-E-D-B-E-D-B-E-D-B-E-D-B-E-D-C-E-D-C-E-D-C-E-D-C-2E </p>
+                                                              </p></td>
+                        </tr>
+                                                <!-- Spacer -->
+                         <tr>
+                              <td width="600" height="22" class="cell">&nbsp;</td>
+                         </tr>
+                         <!-- End Spacer -->      
+                         </table>
+                    </td>
+                    </tr>
+               </table>
+          </td>
+     </tr>
+<!-- End Body -->
+<!-- Promo Banner -->
+          <tr class="mobile-hide">
+          <td width="600" class="cell">
+            <a href="http://log.concept2.com"><img border="0" src="https://utilities.concept2.com/images/wod-email/banner/en/desktop.png" width="600" alt=""></a>
+            </td> 
+        </tr>
+          <tr class="mobile-show">
+          <td width="600" class="cell">
+            <a href="http://log.concept2.com"><img border="0" class="mobile-show" src="https://utilities.concept2.com/images/wod-email/banner/en/mobile.png" width="320" alt=""></a>
+            </td> 
+        </tr>
+<!-- End Promo Banner -->              
+<!-- Spacer -->
+          <tr>
+          <td width="600" height="33" class="cell">&nbsp;</td>
+        </tr>
+<!-- End Spacer -->
+<!-- Nav (Footer) -->         
+        <tr>
+            <td width="600" class="cell">
+                <table width="600" cellpadding="0" cellspacing="0" border="0" class="table">
+                <tr class="mobile-hide">             
+<!--[if !mso]><!-->
+                    <td width="600" class="nav footer" align="center"><a href="http://www.concept2.com/indoor-rowers">RowErg</a> <a href="http://www.concept2.com/skierg/concept2-skierg">SkiErg</a> <a href="http://www.concept2.com/bikeerg/concept2-bikeerg">BikeErg</a> <a href="http://www.concept2.com/oars">Oars</a> <a href="http://www.concept2.com/indoor-rowers/training/wod">WOD</a> <a class="last-item" href="http://www.concept2.com/service">Support</a>
+                    </td>
+               </tr>
+<!--<![endif]-->               
+<!--[if mso]>
+                <tr>
+                    <td>
+                    <table width="80%" align="center">
+                     <tr>
+                       <td>
+                       <table width="100%">
+                       <tr>
+                            <td class="nav header" align="center"><a href="http://www.concept2.com/indoor-rowers"><strong>Indoor Rowers</strong></a></td><td> | </td><td class="nav header" align="center"><a href="http://www.concept2.com/skierg/concept2-skierg"><strong>SkiErg</strong></a></td><td> | </td><td class="nav header" align="center"><a href="http://www.concept2.com/bikeerg/concept2-bikeerg"><strong>BikeErg</strong></a></td><td> | </td><td class="nav header" align="center"><a href="http://www.concept2.com/oars"><strong>Oars</strong></a></td><td> | </td><td class="nav header" align="center"><a href="http://www.concept2.com/indoor-rowers/training/wod"><strong>WOD</strong></a></td><td> | </td><td class="nav header" align="center"><a href="http://www.concept2.com/service"><strong>Support</strong></a></td>
+                        </tr>
+                       </table>
+                       </td>
+                    </tr> 
+                    </table>
+                 </td>
+               </tr>                              
+<![endif]-->   
+              <tr class="mobile-show">
+                <td width="600" class="cell">
+                  <a href="http://www.concept2.com/indoor-rowers"><img border="0" class="mobile-show" src="https://utilities.concept2.com/images/wod-email/ir-mobile-footer-1.png" width="320" alt="Indoor Rowers"></a>
+                </td> 
+              </tr>
+              <tr class="mobile-show">
+                <td width="600" class="cell">
+                  <a href="http://www.concept2.com/skierg/concept2-skierg"><img border="0" class="mobile-show" src="https://utilities.concept2.com/images/wod-email/se-mobile-footer-2.png" width="320" alt="SkiErgs"></a>
+                </td> 
+              </tr>
+              <tr class="mobile-show">
+                <td width="600" class="cell">
+                  <a href="http://www.concept2.com/bikeerg/concept2-bikeerg"><img border="0" class="mobile-show" src="https://utilities.concept2.com/images/wod-email//be-mobile-footer-3.png" width="320" alt="BikeErgs"></a>
+                </td> 
+              </tr> 
+              <tr class="mobile-show">
+                <td width="600" class="cell">
+                  <a href="http://www.concept2.com/oars"><img border="0" class="mobile-show" src="https://utilities.concept2.com/images/wod-email//oars-mobile-footer-4.png" width="320" alt="Oars"></a>
+                </td> 
+              </tr> 
+              <tr class="mobile-show">
+                <td width="600" class="cell">
+                  <a href="http://www.concept2.com/indoor-rowers/training/wod"><img border="0" class="mobile-show" src="https://utilities.concept2.com/images/wod-email//wod-mobile-footer-5.png" width="320" alt="Workout of the Day"></a>
+                </td> 
+              </tr> 
+              <tr class="mobile-show">
+                <td width="600" class="cell">
+                  <a href="http://www.concept2.com/service"><img border="0" class="mobile-show" src="https://utilities.concept2.com/images/wod-email//support-mobile-footer-6.png" width="320" alt="Support"></a>
+                </td> 
+              </tr>              
+              </table>
+            </td>
+        </tr>
+<!-- End Nav (Footer) -->       
+<!-- Spacer -->
+     <tr>
+          <td width="600" height="30" class="cell">&nbsp;</td>
+     </tr>
+<!-- End Spacer -->                
+<!-- Social -->         
+     <tr>
+          <td width="600" class="cell">
+               <table width="600" cellpadding="0" cellspacing="0" border="0" class="table">
+                    <tr>
+                         <td width="192" class="social" align="center"></td>
+                         <td width="54" class="social" align="center"><a href="http://www.instagram.com/concept2inc"><img src="https://utilities.concept2.com/images/wod-email/insta.png" alt="Instagram" width="44" border="0" align="center"></a></td>
+                         <td width="54" class="social" align="center"><a href="http://www.facebook.com/concept2inc"><img src="https://utilities.concept2.com/images/wod-email/facebook.png" alt="Facebook" width="44" border="0" align="center"></a></td>
+                         <td width="54" class="social" align="center"><a href="http://www.youtube.com/concept2usa"><img src="https://utilities.concept2.com/images/wod-email/youtube.png" alt="YouTube" width="44" border="0" align="center"></a></td>
+                         <td width="54" class="social" align="center"><a href="https://twitter.com/concept2"><img src="https://utilities.concept2.com/images/wod-email/twitter.png" alt="Twitter" width="44" border="0" align="center"></a></td>
+                         <td width="192" class="social" align="center"></td>
+                    </tr> 
+               </table>
+          </td>
+     </tr>
+<!-- End Social -->        
+<!-- Spacer -->
+     <tr>
+          <td width="600" height="30" class="cell">&nbsp;</td>
+     </tr>
+<!-- End Spacer -->        
+<!-- Contact -->         
+        <tr>
+          <td width="600" class="cell">
+               <table width="600" cellpadding="0" cellspacing="0" border="0" class="table">
+                    <tr>
+                         <td width="600" class="cell contact" align="center"><p>Questions?</p></td>
+                    </tr>
+                    <tr>
+                         <td width="600" class="cell contact" align="center"><p><a href="mailto:info@concept2.com"><strong style="font-weight: normal;">info@concept2.com</strong></a></p></td></tr>
+                    <tr>
+                         <td width="600" class="cell contact" align="center"><p>800.245.5676 (toll-free)</p></td>
+                    </tr>
+                                        <tr>
+                         <td width="600" class="cell contact" align="center"><p>Mon-Fri 9:30 a.m.–4:00 p.m. ET</p></td>
+                    </tr>
+                               
+               </table>
+            </td>
+        </tr>
+<!-- End Contact -->
+<!-- Spacer -->
+          <tr>
+               <td width="600" height="23" class="cell">&nbsp;</td>
+          </tr>
+<!-- End Spacer -->        
+<!-- Legal -->         
+        <tr>
+          <td width="600" class="cell">
+               <table width="600" cellpadding="0" cellspacing="0" border="0" class="table">
+                    <tr>
+                         <td width="600" class="cell legal" align="center">
+                              <p>This email was sent to <span class="legal">[email]</span>.</p>
+                         </td>
+                    </tr>
+                    <tr>
+                         <td width="600" class="cell legal" align="center">
+                              <p>You may <unsubscribe class="legal">unsubscribe</unsubscribe> any time.</p>
+                         </td>
+                    </tr>
+                    <tr>
+                         <td width="600" class="cell legal" align="center"><p><preferences class="legal">Manage subscription options</preferences></p></td>
+                    </tr>
+                    <tr>
+                         <td width="600" class="cell legal" align="center">
+                              <p>
+                                   <forwardtoafriend class="legal">
+                                        <strong style="font-weight: normal;">Forward to a friend</strong>
+                                   </forwardtoafriend>
+                              </p>
+                         </td>
+                    </tr>
+                    <tr>
+                         <td width="600" class="cell legal" align="center"><p>&copy;Concept2, Inc. 105 Industrial Park Drive<br>Morrisville, Vermont 05661</p></td>
+                    </tr>                               
+               </table>
+            </td>
+          </tr>
+<!-- End Legal -->        
+<!-- Spacer -->          
+          <tr>
+               <td width="600" height="23" class="cell">&nbsp;</td>
+          </tr>
+<!-- End Spacer -->                                                                                       
+     </table>
+     </td>
+</tr>
+</table>
+<!-- End --> 
+</body>
+</html>

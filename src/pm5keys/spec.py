@@ -12,16 +12,21 @@ CLI:
         Parse a single piece of text and print the resulting spec as
         JSON, or exit 2 and print 'unparsed'.
 
-    python3 -m pm5keys.spec --coverage dataset_unique.jsonl
+    python3 -m pm5keys.spec --coverage dataset_unique.jsonl [--parsed PATH] [--unparsed PATH]
         Run parse_spec over every row of a dataset_unique.jsonl-shaped
         file (using title + '\\n' + description as the text), print
         parsed/unparsed counts (by row and weighted by count), and
-        write spec_unparsed.md and spec_parsed.jsonl.
+        write the parsed/unparsed reports (`--parsed`, default
+        `data/spec_parsed.jsonl`; `--unparsed`, default
+        `data/reports/spec_unparsed.md`; both relative to the current
+        working directory -- this module never writes next to its own
+        file).
 """
 
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 
@@ -1153,9 +1158,15 @@ def parse_spec(text: str, machines: str | None = None) -> dict | None:
 # ---------------------------------------------------------------------------
 
 
-def _run_coverage(path: str) -> None:
-    import os
+_DEFAULT_COVERAGE_PARSED = os.path.join("data", "spec_parsed.jsonl")
+_DEFAULT_COVERAGE_UNPARSED = os.path.join("data", "reports", "spec_unparsed.md")
 
+
+def _run_coverage(
+    path: str,
+    parsed_path: str = _DEFAULT_COVERAGE_PARSED,
+    unparsed_path: str = _DEFAULT_COVERAGE_UNPARSED,
+) -> None:
     rows = [json.loads(line) for line in open(path)]
 
     parsed_rows = 0
@@ -1195,9 +1206,9 @@ def _run_coverage(path: str) -> None:
     print(f"parsed count-weighted: {parsed_count}/{total_count} ({pct_count:.1f}%)")
     print(f"unparsed rows: {len(unparsed)}")
 
-    out_dir = os.path.dirname(os.path.abspath(__file__))
-
-    unparsed_path = os.path.join(out_dir, "spec_unparsed.md")
+    unparsed_dir = os.path.dirname(unparsed_path)
+    if unparsed_dir:
+        os.makedirs(unparsed_dir, exist_ok=True)
     with open(unparsed_path, "w") as f:
         f.write("# Unparsed rows\n\n")
         f.write(f"{len(unparsed)} of {total_rows} distinct rows did not parse.\n\n")
@@ -1208,7 +1219,9 @@ def _run_coverage(path: str) -> None:
                 f"  description: {r.get('description', '')!r}\n\n"
             )
 
-    parsed_path = os.path.join(out_dir, "spec_parsed.jsonl")
+    parsed_dir = os.path.dirname(parsed_path)
+    if parsed_dir:
+        os.makedirs(parsed_dir, exist_ok=True)
     with open(parsed_path, "w") as f:
         for row in parsed_out:
             f.write(json.dumps(row) + "\n")
@@ -1222,9 +1235,31 @@ def main(argv=None) -> int:
 
     if argv and argv[0] == "--coverage":
         if len(argv) < 2:
-            print("usage: spec.py --coverage <dataset.jsonl>", file=sys.stderr)
+            print(
+                "usage: spec.py --coverage <dataset.jsonl> "
+                f"[--parsed {_DEFAULT_COVERAGE_PARSED}] [--unparsed {_DEFAULT_COVERAGE_UNPARSED}]",
+                file=sys.stderr,
+            )
             return 2
-        _run_coverage(argv[1])
+        dataset_path = argv[1]
+        parsed_path = _DEFAULT_COVERAGE_PARSED
+        unparsed_path = _DEFAULT_COVERAGE_UNPARSED
+        i = 2
+        while i < len(argv):
+            if argv[i] == "--parsed" and i + 1 < len(argv):
+                parsed_path = argv[i + 1]
+                i += 2
+            elif argv[i] == "--unparsed" and i + 1 < len(argv):
+                unparsed_path = argv[i + 1]
+                i += 2
+            else:
+                print(
+                    "usage: spec.py --coverage <dataset.jsonl> "
+                    f"[--parsed {_DEFAULT_COVERAGE_PARSED}] [--unparsed {_DEFAULT_COVERAGE_UNPARSED}]",
+                    file=sys.stderr,
+                )
+                return 2
+        _run_coverage(dataset_path, parsed_path, unparsed_path)
         return 0
 
     machines = None
