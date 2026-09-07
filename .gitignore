@@ -7,3 +7,5 @@ raw/
 eval_cache/
 .pytest_cache/
 .pii-patterns.local
+web/dist/
+web/version.js

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>pm5keys</title>
+<meta name="description" content="Turn a rowing workout description into the Concept2 PM5/PM3/PM4 button-press sequence, right in your browser.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <header>
+    <h1>pm5keys</h1>
+    <p class="tagline">
+      Type a workout like a coach's WOD email and get the exact
+      Concept2 monitor button-press sequence back &mdash; no app, no
+      typing on the erg's tiny keypad to figure it out.
+    </p>
+  </header>
+
+  <section class="panel">
+    <label for="workout-text" class="field-label">Workout description</label>
+    <textarea id="workout-text" rows="3" spellcheck="false"
+      >8 x 500m, 2 minutes rest</textarea>
+
+    <div class="chips" id="example-chips" aria-label="Example workouts">
+      <!-- populated by app.js from examples.js -->
+    </div>
+
+    <fieldset class="monitor-select">
+      <legend>Monitor</legend>
+      <label><input type="radio" name="monitor" value="pm5"> PM5</label>
+      <label><input type="radio" name="monitor" value="pm3"> PM3 / PM4</label>
+      <label><input type="radio" name="monitor" value="both" checked> Both</label>
+    </fieldset>
+
+    <button id="generate-btn" type="button" disabled>Generate</button>
+  </section>
+
+  <p id="status-line" class="status" role="status" aria-live="polite">
+    Loading Python runtime&hellip; (about 10&nbsp;MB, first visit only)
+  </p>
+
+  <section class="panel output-panel" id="output-panel" hidden>
+    <pre id="output-lines" class="output-lines" aria-live="polite"></pre>
+
+    <details id="trace-details">
+      <summary>Show button-by-button trace</summary>
+      <div id="trace-content" class="trace-content"></div>
+    </details>
+  </section>
+
+  <footer>
+    <p>
+      <a href="https://github.com/ericbowman/pm5keys" target="_blank" rel="noopener">
+        pm5keys on GitHub
+      </a>
+      &middot;
+      <a href="https://github.com/ericbowman/pm5keys/blob/main/docs/notation.md" target="_blank" rel="noopener">
+        button-press notation
+      </a>
+    </p>
+    <p class="disclaimer">
+      Rules-based parser only &mdash; runs entirely in your browser via
+      Pyodide. No LLM, no server, no data leaves your device.
+    </p>
+  </footer>
+</main>
+
+<script src="examples.js"></script>
+<script src="version.js"></script>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

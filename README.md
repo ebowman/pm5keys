@@ -28,6 +28,17 @@ E    Intervals: Distance: confirm
 `--explain` walks the PM5's own menu simulator press by press, so you
 can see exactly which screen each button acts on and why.
 
+## Web demo
+
+Try the rules parser and compiler in your browser, no install required:
+**https://<owner>.github.io/pm5keys/**
+
+It runs entirely client-side via [Pyodide](https://pyodide.org/) (Python
+compiled to WebAssembly) — rules only, no LLM in the browser, and no
+data leaves your device. Only text the deterministic rules parser can
+handle (see "What it understands" below) will produce a result; other
+text gets a message pointing at the CLI's LLM fallback instead.
+
 ## Install
 
 Not yet on PyPI (pending release) — until then, install straight from

@@ -65,3 +65,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   GOLD_VARIABLE, 1 GOLD_MISMATCH, 0 MODEL_ERROR (5 calorie-workout rows
   have no `pm34` gold and are skipped) via
   `python -m pm5keys.compile_keys --verify --monitor pm3`.
+- Static web demo (`web/`, deployed via GitHub Pages by
+  `.github/workflows/pages.yml`) running the rules parser and compiler
+  entirely client-side with [Pyodide](https://pyodide.org/) — no build
+  step, no framework, no LLM in the browser. `web/build_examples.py`
+  generates the example-chip titles (`web/examples.js`) from the top
+  RowErg/All-Machines rows in `data/dataset_unique.jsonl`.
