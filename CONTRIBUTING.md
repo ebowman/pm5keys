@@ -32,3 +32,7 @@ python -m unittest discover -s tests -t .
 If you add a new kind of personal identifier to scrub, extend
 `tests/test_no_pii.py`'s built-in *pattern shapes* (not literal private
 tokens) alongside the fixture change so the check keeps catching it.
+
+## Keeping the dataset docs in sync
+
+When you refresh the dataset, regenerate docs/dataset.md counts (see tests/test_dataset_doc.py).
