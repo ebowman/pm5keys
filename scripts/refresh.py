@@ -32,7 +32,9 @@ Exit codes:
 
 The verify summary and rebuild counts are always printed to stdout as
 markdown, and additionally appended to $GITHUB_STEP_SUMMARY when that
-env var is set (GitHub Actions' job-summary mechanism).
+env var is set (GitHub Actions' job-summary mechanism). Pass
+--summary-file PATH to also write just that markdown block (nothing
+else) to PATH, e.g. for use as a PR body.
 """
 
 from __future__ import annotations
@@ -208,6 +210,15 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         default=False,
         help="print the plan (since date, commands) and exit without running anything",
+    )
+    parser.add_argument(
+        "--summary-file",
+        default=None,
+        help=(
+            "path to write only the '## Dataset refresh summary' markdown "
+            "block to (overwritten each run); stdout still gets the full "
+            "log plus this summary"
+        ),
     )
     return parser
 
@@ -411,6 +422,11 @@ def main(argv: list[str] | None = None) -> int:
     step_summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
     if step_summary_path:
         with open(step_summary_path, "a", encoding="utf-8") as f:
+            f.write(summary)
+            f.write("\n")
+
+    if args.summary_file:
+        with open(args.summary_file, "w", encoding="utf-8") as f:
             f.write(summary)
             f.write("\n")
 

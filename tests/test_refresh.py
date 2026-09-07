@@ -403,6 +403,56 @@ class MainMockedSubprocessTest(unittest.TestCase):
 
             self.assertEqual(exit_code, 0)
 
+    def test_summary_file_contains_only_the_summary_block(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            raw_dir, out_dir = self._make_dirs(tmpdir)
+            baseline_arg = os.path.join(out_dir, "reports", "verify_baseline.json")
+            summary_path = os.path.join(tmpdir, "summary.md")
+
+            responses = [
+                _ok_result(),  # build
+                _ok_result(),  # check
+                _ok_result(),  # split
+                _ok_result(),  # spec --coverage
+                _ok_result(_PM5_VERIFY_OUTPUT),  # compile_keys --verify (pm5)
+                _ok_result(_PM3_VERIFY_OUTPUT),  # compile_keys --verify --monitor pm3
+                _ok_result(),  # tests.test_dataset_doc
+            ]
+
+            with (
+                mock.patch.object(refresh, "_since_is_future", return_value=True),
+                mock.patch("subprocess.run", side_effect=responses),
+            ):
+                exit_code = refresh.main(
+                    [
+                        "--raw",
+                        raw_dir,
+                        "--out",
+                        out_dir,
+                        "--since",
+                        "2026-09-08",
+                        "--baseline",
+                        baseline_arg,
+                        "--summary-file",
+                        summary_path,
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+
+            with open(summary_path, encoding="utf-8") as f:
+                summary_contents = f.read()
+
+            self.assertTrue(summary_contents.startswith("## Dataset refresh summary"))
+            self.assertIn(
+                "| monitor | EXACT | EQUIVALENT | GOLD_VARIABLE | GOLD_MISMATCH | MODEL_ERROR |",
+                summary_contents,
+            )
+            self.assertIn("| pm5 | 108 | 4 | 3 | 1 | 0 |", summary_contents)
+            self.assertIn("| pm3 | 103 | 4 | 3 | 1 | 0 |", summary_contents)
+            self.assertNotIn("fetched", summary_contents)
+            self.assertNotIn("plan:", summary_contents)
+
 
 if __name__ == "__main__":
     unittest.main()

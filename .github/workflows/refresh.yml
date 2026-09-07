@@ -50,10 +50,10 @@ jobs:
         id: refresh
         run: |
           set -o pipefail
-          python scripts/refresh.py | tee /tmp/refresh-output.txt
+          python scripts/refresh.py --summary-file "$RUNNER_TEMP/refresh-summary.md" | tee /tmp/refresh-output.txt
           {
             echo "summary<<REFRESH_SUMMARY_EOF"
-            cat /tmp/refresh-output.txt
+            cat "$RUNNER_TEMP/refresh-summary.md"
             echo "REFRESH_SUMMARY_EOF"
           } >> "$GITHUB_OUTPUT"
 

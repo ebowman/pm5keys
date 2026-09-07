@@ -223,7 +223,9 @@ containing:
   `data/reports/*.md`
 - a PR body with the refresh summary: rows/unique-rows before and
   after, and the PM5/PM3 verify counts (EXACT / EQUIVALENT /
-  GOLD_VARIABLE / GOLD_MISMATCH / MODEL_ERROR)
+  GOLD_VARIABLE / GOLD_MISMATCH / MODEL_ERROR) -- written by
+  `scripts/refresh.py --summary-file` as just that markdown block, not
+  the full pipeline log
 
 If nothing changed (no new WOD pages since the last run), the workflow
 completes without opening a PR.
