@@ -6,3 +6,4 @@ __pycache__/
 raw/
 eval_cache/
 .pytest_cache/
+.pii-patterns.local
