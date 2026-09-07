@@ -190,13 +190,32 @@ class MainCliTest(unittest.TestCase):
         self.assertIn("ANTHROPIC_API_KEY", err)
         self.assertEqual(out, "")
 
-    def test_llm_anthropic_without_key_exits_2_naming_env_var(self):
+    def test_llm_anthropic_without_key_exits_2_naming_env_var_sdk_present(self):
+        # anthropic SDK importable (as in the repo .venv), key absent:
+        # stderr must still name ANTHROPIC_API_KEY.
         env = dict(os.environ)
         env.pop("ANTHROPIC_API_KEY", None)
         with mock.patch.dict(os.environ, env, clear=True):
             code, out, err = self._run_main(
                 ["four hard 500s with 90 seconds off", "--llm", "anthropic"]
             )
+        self.assertEqual(code, 2)
+        self.assertIn("ANTHROPIC_API_KEY", err)
+        self.assertEqual(out, "")
+
+    def test_llm_anthropic_without_key_exits_2_naming_env_var_sdk_absent(self):
+        # anthropic SDK NOT importable (as in a `pip install .[dev]`-only
+        # venv, which is what CI installs), key also absent: stderr must
+        # still name ANTHROPIC_API_KEY, not just the install hint.
+        import sys
+
+        env = dict(os.environ)
+        env.pop("ANTHROPIC_API_KEY", None)
+        with mock.patch.dict(sys.modules, {"anthropic": None}):
+            with mock.patch.dict(os.environ, env, clear=True):
+                code, out, err = self._run_main(
+                    ["four hard 500s with 90 seconds off", "--llm", "anthropic"]
+                )
         self.assertEqual(code, 2)
         self.assertIn("ANTHROPIC_API_KEY", err)
         self.assertEqual(out, "")

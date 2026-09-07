@@ -143,10 +143,11 @@ class AnthropicBackend:
 
     The `anthropic` package is imported lazily inside __init__ so that
     importing this module never requires the optional dependency to be
-    installed. If the import fails, ExtractError('install
-    pm5keys[llm]') is raised. The API key is read from the
-    ANTHROPIC_API_KEY environment variable; if unset, ExtractError is
-    raised naming ANTHROPIC_API_KEY.
+    installed. The API key is read from the ANTHROPIC_API_KEY
+    environment variable. __init__ checks both prerequisites (the SDK
+    import and the API key) before raising, so the single ExtractError
+    it raises always names every prerequisite that is actually missing
+    (SDK only, key only, or both).
     """
 
     name = "anthropic"
@@ -154,12 +155,25 @@ class AnthropicBackend:
     def __init__(self):
         try:
             import anthropic
-        except ImportError as exc:
-            raise ExtractError("install pm5keys[llm]") from exc
+
+            sdk_missing = False
+        except ImportError:
+            anthropic = None
+            sdk_missing = True
 
         api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if not api_key:
-            raise ExtractError("ANTHROPIC_API_KEY is not set; export it or use --llm claude-cli")
+        key_missing = not api_key
+
+        if sdk_missing and key_missing:
+            raise ExtractError(
+                "anthropic backend unavailable: install pm5keys[llm] and set ANTHROPIC_API_KEY"
+            )
+        if sdk_missing:
+            raise ExtractError(
+                'anthropic backend unavailable: install pm5keys[llm] (pip install "pm5keys[llm]")'
+            )
+        if key_missing:
+            raise ExtractError("anthropic backend unavailable: set ANTHROPIC_API_KEY")
 
         self._client = anthropic.Anthropic(api_key=api_key)
 

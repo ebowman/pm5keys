@@ -219,6 +219,44 @@ class AnthropicBackendTest(unittest.TestCase):
                 with self.assertRaises(be.ExtractError):
                     backend.complete("prompt", "sonnet")
 
+    def test_sdk_missing_only_names_install_hint(self):
+        # SDK unavailable, key present: message must name pm5keys[llm]
+        # and must NOT also claim the key is missing.
+        with mock.patch.dict(sys.modules, {"anthropic": None}):
+            with mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-fake"}):
+                with self.assertRaises(be.ExtractError) as ctx:
+                    be.AnthropicBackend()
+        message = str(ctx.exception)
+        self.assertIn("pm5keys[llm]", message)
+        self.assertNotIn("ANTHROPIC_API_KEY", message)
+
+    def test_key_missing_only_names_env_var(self):
+        # SDK available, key absent: message must name ANTHROPIC_API_KEY
+        # and must NOT also claim the SDK is missing.
+        fake_module = _install_fake_anthropic_module()
+        env = dict(os.environ)
+        env.pop("ANTHROPIC_API_KEY", None)
+        with mock.patch.dict(sys.modules, {"anthropic": fake_module}):
+            with mock.patch.dict(os.environ, env, clear=True):
+                with self.assertRaises(be.ExtractError) as ctx:
+                    be.AnthropicBackend()
+        message = str(ctx.exception)
+        self.assertIn("ANTHROPIC_API_KEY", message)
+        self.assertNotIn("pm5keys[llm]", message)
+
+    def test_both_missing_names_both_prerequisites(self):
+        # Neither the SDK nor the key is available: the single
+        # ExtractError raised must name both prerequisites.
+        env = dict(os.environ)
+        env.pop("ANTHROPIC_API_KEY", None)
+        with mock.patch.dict(sys.modules, {"anthropic": None}):
+            with mock.patch.dict(os.environ, env, clear=True):
+                with self.assertRaises(be.ExtractError) as ctx:
+                    be.AnthropicBackend()
+        message = str(ctx.exception)
+        self.assertIn("pm5keys[llm]", message)
+        self.assertIn("ANTHROPIC_API_KEY", message)
+
 
 class ResolveBackendTest(unittest.TestCase):
     def test_none_returns_none_backend(self):
