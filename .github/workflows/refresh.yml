@@ -1,0 +1,89 @@
+name: Weekly dataset refresh
+
+on:
+  schedule:
+    # Every Monday at 06:00 UTC.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package with dev extras
+        run: pip install -e .[dev]
+
+      - name: Compute cache key from dataset.jsonl's max date
+        id: cache-key
+        run: |
+          max_date=$(python -c "
+          import json
+          rows = [json.loads(line) for line in open('data/dataset.jsonl', encoding='utf-8') if line.strip()]
+          print(max(row['date'] for row in rows))
+          ")
+          echo "max_date=$max_date" >> "$GITHUB_OUTPUT"
+
+      - name: Restore raw/ cache
+        id: cache-raw
+        uses: actions/cache@v4
+        with:
+          path: raw
+          key: raw-html-${{ steps.cache-key.outputs.max_date }}
+          restore-keys: |
+            raw-html-
+
+      - name: Refresh dataset
+        id: refresh
+        run: |
+          set -o pipefail
+          python scripts/refresh.py | tee /tmp/refresh-output.txt
+          {
+            echo "summary<<REFRESH_SUMMARY_EOF"
+            cat /tmp/refresh-output.txt
+            echo "REFRESH_SUMMARY_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Save raw/ cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: raw
+          key: raw-html-${{ steps.cache-key.outputs.max_date }}
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if [ -n "$(git status --porcelain data/)" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Compute PR date
+        id: pr-date
+        if: steps.changes.outputs.changed == 'true'
+        run: echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Open pull request
+        if: steps.changes.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "Dataset refresh ${{ steps.pr-date.outputs.date }}"
+          branch: data-refresh/${{ steps.pr-date.outputs.date }}
+          title: "Dataset refresh ${{ steps.pr-date.outputs.date }}"
+          body: ${{ steps.refresh.outputs.summary }}
+          add-paths: data

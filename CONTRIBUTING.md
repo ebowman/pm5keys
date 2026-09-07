@@ -195,3 +195,85 @@ tokens) alongside the fixture change so the check keeps catching it.
 ## Keeping the dataset docs in sync
 
 When you refresh the dataset, regenerate docs/dataset.md counts (see tests/test_dataset_doc.py).
+
+## Refreshing the dataset
+
+A scheduled workflow (`.github/workflows/refresh.yml`) runs
+`scripts/refresh.py` every Monday at 06:00 UTC to pick up new
+"Workout of the Day" pages Concept2 has published since the last
+refresh, rebuild the dataset, and re-verify the PM5/PM3 model against
+it. You can also trigger it manually from the Actions tab
+("Weekly dataset refresh" -> "Run workflow", `workflow_dispatch`), or
+run the same script locally:
+
+```
+python scripts/refresh.py            # incremental: fetches only new days
+python scripts/refresh.py --dry-run  # print the plan without fetching or writing anything
+```
+
+### What the PR contains
+
+When the scheduled (or manually dispatched) run finds any changes
+under `data/`, it opens a pull request via `peter-evans/create-pull-request`
+titled `Dataset refresh <date>` on a branch named `data-refresh/<date>`,
+containing:
+
+- the updated `data/dataset.jsonl`, `data/dataset_unique.jsonl`,
+  `data/train.jsonl`, `data/eval.jsonl`, `data/spec_parsed.jsonl`, and
+  `data/reports/*.md`
+- a PR body with the refresh summary: rows/unique-rows before and
+  after, and the PM5/PM3 verify counts (EXACT / EQUIVALENT /
+  GOLD_VARIABLE / GOLD_MISMATCH / MODEL_ERROR)
+
+If nothing changed (no new WOD pages since the last run), the workflow
+completes without opening a PR.
+
+The workflow caches `raw/` (keyed on `data/dataset.jsonl`'s max date)
+so a normal weekly run only fetches the handful of days published
+since the last refresh; on a cache miss (e.g. the very first run, or
+after the cache expires) it falls back to fetching the entire public
+archive from its start, which takes on the order of 15 minutes for the
+~1,500 pages currently archived.
+
+### When the job fails on MODEL_ERROR or GOLD_MISMATCH
+
+`scripts/refresh.py` exits non-zero -- and the workflow fails **before**
+opening any PR -- if either of the following happens on the refreshed
+data:
+
+- **Any `MODEL_ERROR`** for either monitor (pm5 or pm3): the simulator
+  or compiler raised on a real gold row. This is always a bug to fix in
+  `src/pm5keys/pm5_model.py` / `src/pm5keys/compile_keys.py`, never a
+  baseline to bump.
+- **`GOLD_MISMATCH` exceeding the committed baseline** in
+  `data/reports/verify_baseline.json`. The baseline records the one
+  known, documented anomaly per monitor (see
+  [docs/pm5-model.md](docs/pm5-model.md#the-evidence-table)). A new
+  `GOLD_MISMATCH` beyond that baseline means Concept2 published a
+  button-press sequence for a new workout that contradicts what the
+  PM5/PM3 model predicts.
+
+**Do not bump `data/reports/verify_baseline.json` to make a new
+`GOLD_MISMATCH` go away.** Instead:
+
+1. Look at the failing row in the job's step summary or in
+   `data/reports/compile_report.md` / `compile_report_pm3.md` (the
+   "Non-EXACT rows in detail" section) -- it shows the gold sequence,
+   the compiled sequence, and the spec.
+2. Open an issue describing the row (title, machines, gold sequence,
+   compiled sequence, and why they differ) so it can be triaged like
+   the existing documented anomaly -- it may be a genuine new edge case
+   in Concept2's button-press conventions, or a gap in
+   `src/pm5keys/spec.py`'s parsing.
+3. Only after the anomaly is understood and documented (analogous to
+   the existing entry in
+   [docs/pm5-model.md](docs/pm5-model.md#the-evidence-table)) should
+   the baseline be updated, as a deliberate, reviewed change -- not as
+   a reflexive fix to a failing CI run.
+
+A stale `docs/dataset.md` Counts table does not fail the refresh job:
+the script runs `python -m unittest tests.test_dataset_doc` after the
+rebuild and only warns in the job summary. Update that table by hand
+per "Keeping the dataset docs in sync" above before merging the refresh
+PR (the refresh script never edits docs itself; the regular CI on the
+PR will fail until the counts match).
