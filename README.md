@@ -67,6 +67,7 @@ With no positional argument, the workout text is read from stdin.
 | `--no-llm` | alias for `--llm none`; never fall back to the LLM extractor |
 | `--model MODEL` | LLM model id/alias to pass through to the resolved backend |
 | `--verbose` | print the parsed spec as JSON and its source (`rules` or `llm`) to stderr |
+| `--monitor {pm5,pm3,pm4,both}` | target monitor(s) (default: `pm5`). `pm3`/`pm4` print a `PM3/PM4: <keys>` line instead of `PM5: <keys>` (`pm4` is a spelling alias of `pm3` — see [docs/pm3-model.md](docs/pm3-model.md)); `both` prints the `PM3/PM4:` line first, then the `PM5:` line, matching Concept2's own WOD emails, e.g. `pm5keys --monitor both "8 x 500m, 2 minutes rest"` |
 | (stdin) | omit the positional `text` argument and pipe the workout description in instead |
 | `--version` | print `pm5keys`'s version and exit 0 |
 
@@ -75,7 +76,10 @@ no traceback, when: the input text is empty; the rules can't parse the
 text and `--llm none`/`--no-llm` was given; the resolved LLM backend is
 unavailable when the fallback is needed (e.g. the `llm` extra isn't
 installed, or no API key/CLI is configured); the LLM extractor fails;
-or the parsed spec fails to compile into PM5 keys.
+the parsed spec fails to compile into keys; or (for a single
+`--monitor pm3`/`pm4` target only) the workout is a calorie workout,
+which PM3/PM4 don't support (`--monitor both` degrades gracefully
+instead — see [docs/pm3-model.md](docs/pm3-model.md)).
 
 ## What it understands
 
@@ -132,8 +136,14 @@ evidence table behind these numbers.
   use different (typically doubled) distances; `pm5keys` doesn't
   compute these for you — if you're on a BikeErg, work out the
   doubled distance yourself and enter it into the tool's input text.
-- **PM3/PM4 monitors are not supported yet.** Only PM5 button sequences
-  are generated.
+- **PM3/PM4 support has a narrower gold-data base than PM5's.** `--monitor
+  pm3`/`pm4` (or `both`) is verified against 111 gold `pm34` rows (103
+  EXACT, 4 EQUIVALENT, 3 GOLD_VARIABLE, 1 GOLD_MISMATCH, 0 MODEL_ERROR)
+  — see [docs/pm3-model.md](docs/pm3-model.md) for the full evidence
+  table. PM3/PM4 also has no calorie workout screens at all (Concept2's
+  own monitors don't support calorie-based single or fixed-interval
+  workouts); `pm5keys` raises for those on `--monitor pm3`/`pm4`
+  specifically (`--monitor both` still prints the PM5 line).
 - Two entry-screen details (the Single Calorie screen's layout, and
   whether digit fields wrap or clamp at 0/9) each rest on a single
   observed data point rather than broad corpus coverage — see the

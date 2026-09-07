@@ -51,3 +51,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (including adversarial-probe coverage for the never-guess policy),
   PM5 model, compiler, CLI, dataset docs drift, and fixture PII
   scrubbing.
+- PM3/PM4 monitor support (`docs/pm3-model.md`): a `monitor` parameter
+  on `pm5_model.PM5`/`run`/`explain` and `compile_keys.compile`/`explain`
+  (`'pm5'` default, `'pm3'`, or `'pm4'` as a spelling alias of `'pm3'`),
+  and a `--monitor {pm5,pm3,pm4,both}` CLI flag. PM3/PM4 shares every
+  entry-screen field layout, default, cursor position, and
+  Intervals:Variable rule with PM5; the only differences are a flat
+  five-item New Workout chooser (no Intervals submenu) and the absence
+  of any calorie workout screen (`compile()` raises `NotImplementedError`
+  for `single_calorie`/`intervals_calorie` on `pm3`/`pm4`). Verified
+  against 111 gold `pm34` rows (the PM3/PM4 button-sequence column in
+  the scraped Concept2 dataset): 103 EXACT, 4 EQUIVALENT, 3
+  GOLD_VARIABLE, 1 GOLD_MISMATCH, 0 MODEL_ERROR (5 calorie-workout rows
+  have no `pm34` gold and are skipped) via
+  `python -m pm5keys.compile_keys --verify --monitor pm3`.

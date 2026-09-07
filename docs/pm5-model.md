@@ -274,6 +274,14 @@ See [verification.md](verification.md) for how to check a `pm5keys`-
 generated sequence against a real PM5 (pending: not yet pressed on
 hardware).
 
+## PM3 and PM4
+
+See [pm3-model.md](pm3-model.md) for `pm5keys`'s PM3/PM4 support
+(`--monitor pm3`/`pm4`/`both`) -- PM3 and PM4 share every entry-screen
+detail described above with PM5; the only differences are a flatter
+New Workout chooser (no Intervals submenu) and the total absence of
+calorie workout screens.
+
 ## How this was derived
 
 This model was reverse-engineered against 1,523 public Concept2 WOD

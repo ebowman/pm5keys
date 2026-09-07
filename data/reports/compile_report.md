@@ -1,10 +1,10 @@
-# compile_keys.py --verify report
+# compile_keys.py --verify report (PM5)
 
 Per-row verification of pm5_model.py's simulator and compile_keys.py's
 compiler against every row of spec_parsed.jsonl. See
 compile_keys.py's module docstring for what each category means.
 
-| Title | Machines | Category | Gold | Compiled |
+| Title | Machines | Category | Gold (PM5) | Compiled |
 |---|---|---|---|---|
 | 1/3/5/3/1 minutes with 2 minutes rest | All Machines | EXACT | `B-4D-4A-2B-E-D-2B-E-D-2B-E-D-2C-E-D-2C-2E` | `B-4D-4A-2B-E-D-2B-E-D-2B-E-D-2C-E-D-2C-2E` |
 | 10 x 1 min / 1 min easy | All Machines | EXACT | `B-2D-B-4A-B-E` | `B-2D-B-4A-B-E` |

@@ -24,29 +24,55 @@ an install hint and exits 2.
 CLI:
     pm5keys "<text>" [--llm {auto,none,anthropic,claude-cli}] [--no-llm]
              [--explain] [--verbose] [--model MODEL]
+             [--monitor {pm5,pm3,pm4,both}]
         With no positional argument, the workout text is read from
         stdin. --llm selects which backend the LLM fallback uses
         (default: auto, which prefers the Anthropic SDK+key, then the
         claude CLI, then disables the fallback -- see
         pm5keys.llm.backends.resolve_backend). --no-llm is an alias for
         --llm none. --model passes a model id/alias through to the
-        resolved backend. Prints exactly two lines to stdout:
+        resolved backend. --monitor selects the target monitor(s):
+        'pm5' (default), 'pm3', 'pm4' (a spelling alias of 'pm3'), or
+        'both'. Prints the title line followed by one key-sequence line
+        per requested monitor:
 
             <title line>
+            PM5: <keys>
+
+        or, for --monitor pm3/pm4:
+
+            <title line>
+            PM3/PM4: <keys>
+
+        or, for --monitor both (PM3/PM4 line first, then PM5, matching
+        Concept2's own WOD emails):
+
+            <title line>
+            PM3/PM4: <keys>
             PM5: <keys>
 
         where <title line> is the input text's first line, whitespace-
         normalised and truncated to 80 characters. With --verbose, the
         parsed spec (as JSON) and its source ('rules' or 'llm') are
         printed to stderr. With --explain, one line per press (from
-        pm5_model/compile_keys explain()) is printed after the two
-        lines, formatted '<press>  <screen>: <action>' in aligned
-        columns; consecutive presses that share the same press letter
-        and screen, and whose actions differ only in the trailing
-        '(now N)' digit-edit value or the cursor-move destination
-        field, are collapsed to '<n>x<press>' (showing the last
-        action's destination/value). --version prints pm5keys's
-        version and exits 0.
+        pm5_model/compile_keys explain()) is printed after the key-
+        sequence line(s), formatted '<press>  <screen>: <action>' in
+        aligned columns; consecutive presses that share the same press
+        letter and screen, and whose actions differ only in the
+        trailing '(now N)' digit-edit value or the cursor-move
+        destination field, are collapsed to '<n>x<press>' (showing the
+        last action's destination/value). With --monitor both,
+        --explain prints each monitor's trace under its own 'PM3/PM4:'
+        / 'PM5:' heading. --version prints pm5keys's version and exits
+        0.
+
+    Calorie workouts ('single_calorie'/'intervals_calorie' specs) are
+    not supported on PM3/PM4 (Concept2's PM3/PM4 monitors have no
+    calorie workout screens at all). --monitor pm3/pm4 with a calorie
+    workout exits 2 with compile_keys.compile's NotImplementedError
+    message. --monitor both still succeeds: it prints the PM5 line
+    normally and a 'PM3/PM4: not supported (calorie workouts)' line in
+    place of a PM3/PM4 key sequence.
 
 Exit codes: 0 on success. 2, with a one-line message on stderr and no
 traceback, when: the text is empty; parse_spec returns None and --llm
@@ -56,9 +82,10 @@ because auto-detection found nothing, or the llm extra is not
 installed) when the LLM fallback is needed ('unparsed: rules could not
 parse this text; enable the LLM fallback with --llm anthropic (pip
 install pm5keys[llm] and set ANTHROPIC_API_KEY) or --llm claude-cli');
-the LLM extractor raises ExtractError (its message is printed); or
+the LLM extractor raises ExtractError (its message is printed);
 compile_keys.compile raises ValueError/NotImplementedError (its
-message is printed).
+message is printed); or -- for a single --monitor pm3/pm4 target -- the
+workout is a calorie workout, which those monitors don't support.
 """
 
 from __future__ import annotations
@@ -91,18 +118,30 @@ _UNPARSED_NO_LLM_HINT = (
 )
 
 
+_MONITOR_LINE_LABEL = {"pm5": "PM5", "pm3": "PM3/PM4", "pm4": "PM3/PM4"}
+_CALORIE_KINDS = ("single_calorie", "intervals_calorie")
+
+
 def run(
     text: str,
     llm: str = "auto",
     model: str | None = None,
     extract_fn=None,
+    monitor: str = "pm5",
 ) -> dict:
     """Run the full text -> spec -> keys pipeline. Returns a dict with
-    keys: title, keys, spec, source ('rules' or 'llm'), explain (list
-    of (press, screen, action) tuples). Raises Wod2KeysError on any
-    user-facing failure (empty input, unparsed text with the LLM
-    fallback unavailable, LLM extraction failure, or compile failure)
-    with a one-line message suitable for printing to the user.
+    keys: title, spec, source ('rules' or 'llm'), monitor (the
+    normalised --monitor value, one of 'pm5'/'pm3'/'pm4'/'both'), lines
+    (list of str, the 'PM5: ...' / 'PM3/PM4: ...' output lines in
+    display order), and explains (list of (label, trace) pairs, one per
+    monitor actually compiled, label being 'PM3/PM4' or 'PM5', trace a
+    pm5_model.explain()-shaped list of (press, screen, action) tuples --
+    monitors whose compile raised NotImplementedError have no entry
+    here). Raises Wod2KeysError on any user-facing failure (empty input,
+    unparsed text with the LLM fallback unavailable, LLM extraction
+    failure, or -- for a single --monitor pm3/pm4 target -- a calorie
+    workout, which those monitors don't support) with a one-line message
+    suitable for printing to the user.
 
     llm selects the backend name passed to pm5keys.llm.resolve_backend
     ('auto' (default), 'none', 'anthropic', or 'claude-cli').
@@ -111,6 +150,15 @@ def run(
     (for offline testing); it is called as extract_fn(text, model=model)
     and extract_fn's own exceptions are treated as user-facing failures
     (message forwarded verbatim).
+
+    monitor selects the target monitor(s): 'pm5' (default), 'pm3', 'pm4'
+    (an alias of 'pm3'), or 'both' (PM3/PM4 line first, then PM5, matching
+    Concept2's own WOD emails). For a single monitor target, a calorie
+    workout ('single_calorie'/'intervals_calorie') on 'pm3'/'pm4' raises
+    Wod2KeysError with compile_keys.compile's NotImplementedError message.
+    For 'both', a calorie workout still compiles and prints the PM5 line;
+    the PM3/PM4 line reads 'PM3/PM4: not supported (calorie workouts)'
+    instead of raising.
     """
     if not text or not text.strip():
         raise Wod2KeysError("empty input")
@@ -151,19 +199,45 @@ def run(
     spec = dict(spec)
     spec["machine"] = "rower"
 
-    try:
-        keys = compile_keys.compile(spec)
-    except (ValueError, NotImplementedError) as exc:
-        raise Wod2KeysError(str(exc)) from exc
+    if monitor == "both":
+        target_monitors = ["pm3", "pm5"]  # PM3/PM4 line first, then PM5
+    else:
+        target_monitors = [monitor]
 
-    explain_trace = pm5.explain(keys)
+    lines = []
+    explains = []
+    primary_keys = None
+    primary_explain = None
+    for target in target_monitors:
+        try:
+            keys = compile_keys.compile(spec, monitor=target)
+        except (ValueError, NotImplementedError) as exc:
+            if monitor == "both" and target == "pm3" and spec.get("kind") in _CALORIE_KINDS:
+                lines.append("PM3/PM4: not supported (calorie workouts)")
+                continue
+            raise Wod2KeysError(str(exc)) from exc
+
+        label = _MONITOR_LINE_LABEL[target]
+        lines.append(f"{label}: {keys}")
+        trace = pm5.explain(keys, monitor=target)
+        explains.append((label, trace))
+        if target == monitor or (monitor == "both" and target == "pm5"):
+            primary_keys = keys
+            primary_explain = trace
 
     return {
         "title": _normalise_title(text),
-        "keys": keys,
         "spec": spec,
         "source": source,
-        "explain": explain_trace,
+        "monitor": monitor,
+        "lines": lines,
+        "explains": explains,
+        # Backwards-compatible single-monitor fields: the compiled keys
+        # and explain trace for the "primary" target (the requested
+        # monitor itself, or PM5 when monitor='both', matching pre-R12
+        # callers that assumed a single PM5 result).
+        "keys": primary_keys,
+        "explain": primary_explain,
     }
 
 
@@ -271,6 +345,13 @@ def main(argv: list | None = None) -> int:
         "--verbose", action="store_true", help="print spec JSON and source to stderr"
     )
     parser.add_argument("--model", default=None, help="LLM model id/alias to use")
+    parser.add_argument(
+        "--monitor",
+        default="pm5",
+        choices=["pm5", "pm3", "pm4", "both"],
+        help="target monitor(s): pm5 (default), pm3, pm4 (alias of pm3), or both "
+        "(prints the PM3/PM4 line first, then PM5, like Concept2's own WOD emails)",
+    )
     parser.add_argument("--version", action="version", version=f"pm5keys {__version__}")
 
     args = parser.parse_args(argv)
@@ -280,7 +361,7 @@ def main(argv: list | None = None) -> int:
     text = args.text if args.text is not None else _read_stdin_text()
 
     try:
-        result = run(text, llm=llm, model=args.model)
+        result = run(text, llm=llm, model=args.model, monitor=args.monitor)
     except Wod2KeysError as exc:
         print(str(exc), file=sys.stderr)
         return 2
@@ -290,11 +371,15 @@ def main(argv: list | None = None) -> int:
         print(f"source: {result['source']}", file=sys.stderr)
 
     print(result["title"])
-    print(f"PM5: {result['keys']}")
+    for line in result["lines"]:
+        print(line)
 
     if args.explain:
-        for line in _format_explain(result["explain"]):
-            print(line)
+        for label, trace in result["explains"]:
+            if len(result["explains"]) > 1:
+                print(f"{label}:")
+            for line in _format_explain(trace):
+                print(line)
 
     return 0
 

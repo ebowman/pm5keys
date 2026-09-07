@@ -24,6 +24,34 @@ The Intervals menu is itself a four-item chooser, A/B/C/D:
     A = Intervals: Distance  B = Intervals: Time
     C = Intervals: Calorie   D = Intervals: Variable
 
+PM3/PM4 support
+----------------
+Concept2's PM3 and PM4 monitors share a single data sequence in the
+gold corpus (`pm34` in data/dataset.jsonl) and, per that gold data,
+share an *identical* entry-screen model to the PM5 -- same field
+layouts, defaults, cursor positions, button semantics, and
+Intervals:Variable rules (see GOLD_EXAMPLES / docs/pm3-model.md). The
+only difference is the New Workout chooser itself: PM3/PM4 has **no
+separate Intervals submenu** -- it is a flat five-item chooser,
+A/B/C/D/E:
+
+    A = Single Distance          B = Single Time
+    C = Intervals: Distance      D = Intervals: Time
+    E = Intervals: Variable
+
+and PM3/PM4 has **no calorie screens at all** -- neither Single
+Calorie nor Intervals: Calorie exist on this chooser (Concept2's own
+docs say the PM3/PM4 monitors don't support calorie-based interval or
+fixed-calorie workouts). The Intervals: Variable per-interval type
+chooser (B = Calorie, C = Distance, D = Time) is identical on both
+monitor families -- variable-calorie *legs* are supported even though
+a fixed/single calorie *workout* is not. This was verified directly
+against every gold `pm34` row (`python -m pm5keys.compile_keys
+--verify --monitor pm3`; see docs/pm3-model.md for the evidence
+counts). PM5(monitor="pm3") and PM5(monitor="pm4") are identical
+('pm4' is accepted purely as a spelling alias); the monitor tables
+below are keyed on the normalised name 'pm3'.
+
 Machine (rower/skierg/bikeerg/all) never changes any key; a BikeErg
 distance override is already baked into the spec's numeric work
 values by the time this module sees them. The FIXED interval COUNT
@@ -184,6 +212,19 @@ INTERVALS_DISTANCE = _Screen("distance_m", _DIST_WORK, 500, True, 0, 2)
 INTERVALS_TIME = _Screen("time_s", _TIME_WORK, 60, True, 0, 2)
 INTERVALS_CALORIE = _Screen("calories", _CAL_WORK, 50, True, 0, 1)
 
+# Screen lookup by name, used by the monitor-specific New Workout /
+# Intervals menu tables above (which reference screens by name rather
+# than by the module-level singleton directly, so the tables can be
+# plain data).
+_SCREENS_BY_NAME = {
+    "SINGLE_DISTANCE": SINGLE_DISTANCE,
+    "SINGLE_TIME": SINGLE_TIME,
+    "SINGLE_CALORIE": SINGLE_CALORIE,
+    "INTERVALS_DISTANCE": INTERVALS_DISTANCE,
+    "INTERVALS_TIME": INTERVALS_TIME,
+    "INTERVALS_CALORIE": INTERVALS_CALORIE,
+}
+
 # Human-readable screen names, keyed by id() of the _Screen singletons
 # above -- used by explain() for both the menu-chooser labels and the
 # entry-screen labels (an entry screen's name is the same "workout
@@ -276,24 +317,101 @@ def _value_to_digits(fields, value):
 # Top-level menu states.
 _S_MAIN = "main"
 _S_SELECT_WORKOUT = "select_workout"  # after B (Select Workout); D = New Workout
-_S_NEW_WORKOUT_CHOOSER = "new_workout_chooser"  # A/B/C/D after B-D
-_S_INTERVALS_CHOOSER = "intervals_chooser"  # A/B/C/D after B-D-D
-_S_VARIABLE_TYPE_CHOOSER = "variable_type_chooser"  # after B-D-D-D
+_S_NEW_WORKOUT_CHOOSER = "new_workout_chooser"  # letters after B-D (menu depends on monitor)
+_S_INTERVALS_CHOOSER = "intervals_chooser"  # A/B/C/D after B-D-D (PM5 only)
+_S_VARIABLE_TYPE_CHOOSER = "variable_type_chooser"  # after New Workout -> Variable
 _S_ENTRY = "entry"  # a digit-editing screen (single/fixed/variable-interval)
 _S_DONE = "done"  # workout fully programmed (after the final E)
 
 _VARIABLE_TYPE_LETTERS = {"B": "calories", "C": "distance_m", "D": "time_s"}
 
+# Valid monitor names; 'pm4' is a pure spelling alias for 'pm3' -- the
+# gold data (data/dataset.jsonl's pm34 column) confirms PM3 and PM4
+# share one identical button-press sequence for every workout, so there
+# is exactly one non-PM5 model, normalised to 'pm3' everywhere below.
+_MONITOR_ALIASES = {"pm5": "pm5", "pm3": "pm3", "pm4": "pm3"}
+
+
+def _normalise_monitor(monitor: str) -> str:
+    try:
+        return _MONITOR_ALIASES[monitor]
+    except KeyError:
+        raise ValueError(f"unknown monitor {monitor!r} (expected 'pm5', 'pm3', or 'pm4')") from None
+
+
+# New Workout chooser tables, keyed by normalised monitor name. Each
+# value is one of:
+#   ("single", <_Screen>)        -- go straight to a single-workout entry screen
+#   ("fixed", <_Screen>)         -- go straight to a fixed-interval entry screen
+#   ("intervals_submenu", None)  -- PM5 only: descend into the Intervals submenu
+#   ("variable", None)           -- go straight to the Variable type chooser
+#
+# PM5: A/B/C = Single Distance/Time/Calorie, D = Intervals submenu (itself
+# A/B/C/D = Distance/Time/Calorie/Variable).
+#
+# PM3/PM4: a flat A/B/C/D/E chooser with no Intervals submenu and no
+# calorie screens at all: A/B = Single Distance/Time, C/D = Intervals:
+# Distance/Time (direct entry screens), E = Intervals: Variable. Verified
+# against every gold pm34 row -- see the module docstring's "PM3/PM4
+# support" section and docs/pm3-model.md.
+_NEW_WORKOUT_MENU = {
+    "pm5": {
+        "A": ("single", "SINGLE_DISTANCE"),
+        "B": ("single", "SINGLE_TIME"),
+        "C": ("single", "SINGLE_CALORIE"),
+        "D": ("intervals_submenu", None),
+    },
+    "pm3": {
+        "A": ("single", "SINGLE_DISTANCE"),
+        "B": ("single", "SINGLE_TIME"),
+        "C": ("fixed", "INTERVALS_DISTANCE"),
+        "D": ("fixed", "INTERVALS_TIME"),
+        "E": ("variable", None),
+    },
+}
+
+# PM5's Intervals submenu (only reachable on the pm5 monitor).
+_INTERVALS_SUBMENU = {
+    "A": ("fixed", "INTERVALS_DISTANCE"),
+    "B": ("fixed", "INTERVALS_TIME"),
+    "C": ("fixed", "INTERVALS_CALORIE"),
+    "D": ("variable", None),
+}
+
+# explain()'s per-press action label for a New Workout chooser press, by
+# monitor. PM5's chooser only ever leads to a single-workout screen or
+# the Intervals submenu, so its labels are the short screen-name
+# fragment ("Distance", "Time", "Calorie", "Intervals"); PM3/PM4's flat
+# chooser leads directly to fixed-interval and Variable screens too, so
+# those get their full screen names ("Intervals: Distance", etc.) to
+# match docs/pm3-model.md and avoid implying there's an intermediate
+# Intervals screen that doesn't exist on this monitor.
+_NEW_WORKOUT_ACTION_LABEL = {
+    "pm5": {"A": "Distance", "B": "Time", "C": "Calorie", "D": "Intervals"},
+    "pm3": {
+        "A": "Distance",
+        "B": "Time",
+        "C": "Intervals: Distance",
+        "D": "Intervals: Time",
+        "E": "Intervals: Variable",
+    },
+}
+
 
 class PM5:
-    """A simulator of the PM5's menu/entry-screen state machine, starting
-    from the Main Menu. press(key) advances exactly one physical button
-    press ('A'..'E'); raises ValueError on an impossible press (unknown
-    key, cursor past a field-row end, or a digit that would go out of
-    0..9 range).
+    """A simulator of the PM5/PM3/PM4 menu/entry-screen state machine,
+    starting from the Main Menu. press(key) advances exactly one
+    physical button press ('A'..'E'); raises ValueError on an
+    impossible press (unknown key, cursor past a field-row end, a digit
+    that would go out of 0..9 range, or a press this monitor's menu
+    doesn't support at all, e.g. a calorie screen on PM3/PM4).
+
+    monitor: 'pm5' (default), 'pm3', or 'pm4' ('pm4' is a spelling
+    alias for 'pm3' -- see the module docstring).
     """
 
-    def __init__(self):
+    def __init__(self, monitor: str = "pm5"):
+        self.monitor = _normalise_monitor(monitor)
         self.state = _S_MAIN
         self.screen = None  # current _Screen, once on an entry screen
         self.cursor = 0
@@ -389,7 +507,7 @@ class PM5:
         if state_before == _S_SELECT_WORKOUT:
             return "New Workout"
         if state_before == _S_NEW_WORKOUT_CHOOSER:
-            return {"A": "Distance", "B": "Time", "C": "Calorie", "D": "Intervals"}[key]
+            return _NEW_WORKOUT_ACTION_LABEL[self.monitor][key]
         if state_before == _S_INTERVALS_CHOOSER:
             return {"A": "Distance", "B": "Time", "C": "Calorie", "D": "Variable"}[key]
         if state_before == _S_VARIABLE_TYPE_CHOOSER:
@@ -410,28 +528,31 @@ class PM5:
         self.state = _S_NEW_WORKOUT_CHOOSER
 
     def _press_new_workout_chooser(self, key):
-        if key == "A":
-            self._enter_screen(SINGLE_DISTANCE)
-        elif key == "B":
-            self._enter_screen(SINGLE_TIME)
-        elif key == "C":
-            self._enter_screen(SINGLE_CALORIE)
-        elif key == "D":
+        menu = _NEW_WORKOUT_MENU[self.monitor]
+        entry = menu.get(key)
+        if entry is None:
+            raise ValueError(f"New Workout chooser ({self.monitor}): invalid key {key!r}")
+        kind, screen_name = entry
+        if kind == "single" or kind == "fixed":
+            self._enter_screen(_SCREENS_BY_NAME[screen_name])
+        elif kind == "intervals_submenu":
             self.state = _S_INTERVALS_CHOOSER
-        else:
-            raise ValueError(f"New Workout chooser: invalid key {key!r}")
+        elif kind == "variable":
+            self.state = _S_VARIABLE_TYPE_CHOOSER
+        else:  # pragma: no cover -- defensive, table is exhaustive above
+            raise ValueError(f"New Workout chooser ({self.monitor}): unknown entry {entry!r}")
 
     def _press_intervals_chooser(self, key):
-        if key == "A":
-            self._enter_screen(INTERVALS_DISTANCE)
-        elif key == "B":
-            self._enter_screen(INTERVALS_TIME)
-        elif key == "C":
-            self._enter_screen(INTERVALS_CALORIE)
-        elif key == "D":
-            self.state = _S_VARIABLE_TYPE_CHOOSER
-        else:
+        entry = _INTERVALS_SUBMENU.get(key)
+        if entry is None:
             raise ValueError(f"Intervals chooser: invalid key {key!r}")
+        kind, screen_name = entry
+        if kind == "fixed":
+            self._enter_screen(_SCREENS_BY_NAME[screen_name])
+        elif kind == "variable":
+            self.state = _S_VARIABLE_TYPE_CHOOSER
+        else:  # pragma: no cover -- defensive, table is exhaustive above
+            raise ValueError(f"Intervals chooser: unknown entry {entry!r}")
 
     def _press_variable_type_chooser(self, key):
         if key == "E":
@@ -549,15 +670,16 @@ class PM5:
         raise ValueError("workout already complete; no further presses valid")
 
 
-def run(seq: str) -> dict:
-    """Convenience wrapper: run a fresh PM5 over seq and return the
-    resulting workout dict."""
-    return PM5().run(seq)
+def run(seq: str, monitor: str = "pm5") -> dict:
+    """Convenience wrapper: run a fresh PM5(monitor=monitor) over seq and
+    return the resulting workout dict."""
+    return PM5(monitor=monitor).run(seq)
 
 
-def explain(seq: str) -> list:
-    """Convenience wrapper: explain a fresh PM5's trace over seq."""
-    return PM5().explain(seq)
+def explain(seq: str, monitor: str = "pm5") -> list:
+    """Convenience wrapper: explain a fresh PM5(monitor=monitor)'s trace
+    over seq."""
+    return PM5(monitor=monitor).explain(seq)
 
 
 # ---------------------------------------------------------------------------

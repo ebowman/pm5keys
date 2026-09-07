@@ -456,6 +456,30 @@ monitor ready to start the first (10-calorie) interval.
 
 - [ ] PASS  - [ ] FAIL  notes:
 
+## PM3/PM4
+
+`pm5keys`'s PM3/PM4 model (`docs/pm3-model.md`) was reverse-engineered
+the same way as the PM5 model above -- entirely from Concept2's own
+published `pm34` gold column, never touching physical hardware. The
+same "press it by hand and compare" caveat applies; the three
+sequences below are worth spot-checking on a real PM3 or PM4 first,
+since they exercise both of PM3/PM4's differences from PM5 (the flat
+New Workout chooser and, for the pyramid, the Intervals: Variable
+screen reached directly by a different letter than on PM5):
+
+| Text | PM3/PM4 |
+|---|---|
+| 8 x 500m, 2 minutes rest | B-D-C-4A-2B-E |
+| 4 x 3 min / 2 min easy | B-2D-2B-4A-2B-E |
+| 1/2/3/4/5/4/3/2/1 minutes with 2 minutes rest | B-D-E-D-4A-2B-E-D-B-E-D-B-E-D-B-E-D-B-E-D-C-E-D-C-E-D-C-E-D-C-2E |
+
+Generate any of these yourself with `--monitor pm3` (or `pm4`, an
+alias):
+
+```
+pm5keys --llm none --monitor pm3 "8 x 500m, 2 minutes rest"
+```
+
 ## If something fails
 
 If any row's actual monitor screen doesn't match its "Expected final

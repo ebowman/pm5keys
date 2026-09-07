@@ -284,5 +284,153 @@ class PyramidTypoCaseTest(unittest.TestCase):
         self.assertFalse(ck.same_workout(sim_gold, self.SPEC))
 
 
+# (spec, expected pm34 sequence) pairs for every WorkoutSpec kind PM3/PM4
+# supports, reproduced from the fastmail-808.12 brief / data/dataset.jsonl's
+# 'pm34' column.
+PM3_GOLD_COMPILE_CASES = [
+    (
+        {"machine": "all", "kind": "single_distance", "work": {"distance_m": 2000}, "notes": ""},
+        "B-D-A-E",
+    ),
+    (
+        {"machine": "all", "kind": "single_time", "work": {"time_s": 3600}, "notes": ""},
+        "B-D-B-D-B-A-3C-E",
+    ),
+    (
+        {
+            "machine": "all",
+            "kind": "intervals_distance",
+            "work": {"distance_m": 500},
+            "rest_s": 120,
+            "notes": "",
+        },
+        "B-D-C-4A-2B-E",
+    ),
+    (
+        {
+            "machine": "all",
+            "kind": "intervals_time",
+            "work": {"time_s": 180},
+            "rest_s": 120,
+            "notes": "",
+        },
+        "B-2D-2B-4A-2B-E",
+    ),
+    (
+        {
+            "machine": "all",
+            "kind": "intervals_variable",
+            "intervals": [
+                {"work": {"time_s": 60}, "rest_s": 120},
+                {"work": {"time_s": 120}, "rest_s": 120},
+                {"work": {"time_s": 180}, "rest_s": 0},
+            ],
+            "notes": "",
+        },
+        "B-D-E-D-4A-2B-E-D-B-E-D-B-2E",
+    ),
+]
+
+
+class CompilePm3Test(unittest.TestCase):
+    """compile(spec, monitor='pm3') for every kind PM3/PM4 supports;
+    calorie kinds must raise NotImplementedError instead."""
+
+    def test_reproduces_pm34_gold_for_every_supported_kind(self):
+        kinds_seen = set()
+        for spec, expected_seq in PM3_GOLD_COMPILE_CASES:
+            with self.subTest(spec=spec):
+                got = ck.compile(spec, monitor="pm3")
+                self.assertEqual(got, keyseq.canonical(expected_seq))
+                kinds_seen.add(spec["kind"])
+        self.assertEqual(
+            kinds_seen,
+            {
+                "single_distance",
+                "single_time",
+                "intervals_distance",
+                "intervals_time",
+                "intervals_variable",
+            },
+        )
+
+    def test_pm4_alias_matches_pm3(self):
+        for spec, _expected_seq in PM3_GOLD_COMPILE_CASES:
+            with self.subTest(spec=spec):
+                self.assertEqual(ck.compile(spec, monitor="pm4"), ck.compile(spec, monitor="pm3"))
+
+    def test_single_calorie_raises_on_pm3(self):
+        spec = {"machine": "all", "kind": "single_calorie", "work": {"calories": 250}, "notes": ""}
+        with self.assertRaises(NotImplementedError):
+            ck.compile(spec, monitor="pm3")
+        with self.assertRaises(NotImplementedError):
+            ck.compile(spec, monitor="pm4")
+
+    def test_intervals_calorie_raises_on_pm3(self):
+        spec = {
+            "machine": "all",
+            "kind": "intervals_calorie",
+            "work": {"calories": 20},
+            "rest_s": 20,
+            "notes": "",
+        }
+        with self.assertRaises(NotImplementedError):
+            ck.compile(spec, monitor="pm3")
+
+    def test_calorie_workouts_still_compile_on_pm5(self):
+        # Same specs must still compile fine when monitor='pm5' (default).
+        spec = {"machine": "all", "kind": "single_calorie", "work": {"calories": 250}, "notes": ""}
+        self.assertEqual(ck.compile(spec), "B-D-C-D-2B-E")
+
+    def test_explain_uses_pm3_monitor(self):
+        spec = {
+            "machine": "all",
+            "kind": "intervals_distance",
+            "work": {"distance_m": 500},
+            "rest_s": 120,
+            "notes": "",
+        }
+        trace = ck.explain(spec, monitor="pm3")
+        screens = {screen for _press, screen, _action in trace}
+        self.assertIn("Intervals: Distance", screens)
+        # PM3/PM4 has no separate "Intervals" submenu screen.
+        self.assertNotIn("Intervals", screens)
+
+
+class Pm3RoundTripTest(unittest.TestCase):
+    """Property test: for every non-calorie row in data/spec_parsed.jsonl,
+    same_workout(run(compile(spec, 'pm3'), 'pm3'), spec) must hold -- i.e.
+    compile() and run() are inverses of each other on PM3/PM4, exactly as
+    they already are on PM5. Skips (rather than fails) if the data files
+    aren't present, since they're data assets, not code under test."""
+
+    def test_round_trip_over_all_non_calorie_spec_rows(self):
+        import json
+        import os
+
+        spec_path = os.path.join(os.path.dirname(__file__), "..", "data", "spec_parsed.jsonl")
+        if not os.path.exists(spec_path):
+            self.skipTest("data/spec_parsed.jsonl not present")
+
+        with open(spec_path, encoding="utf-8") as f:
+            rows = [json.loads(line) for line in f if line.strip()]
+
+        checked = 0
+        for row in rows:
+            spec = row["spec"]
+            if spec.get("kind") in ("single_calorie", "intervals_calorie"):
+                continue
+            with self.subTest(title=row["title"], machines=row["machines"]):
+                compiled = ck.compile(spec, monitor="pm3")
+                ran = pm5.run(compiled, monitor="pm3")
+                self.assertTrue(
+                    ck.same_workout(ran, spec),
+                    f"round-trip mismatch for {row['title']!r}: "
+                    f"compiled={compiled!r} ran={ran!r} spec={spec!r}",
+                )
+                checked += 1
+        self.assertGreater(checked, 0, "no non-calorie rows found to round-trip")
+
+
 if __name__ == "__main__":
     unittest.main()

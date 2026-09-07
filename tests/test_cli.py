@@ -263,6 +263,98 @@ class MainCliTest(unittest.TestCase):
         self.assertEqual(ctx.exception.code, 0)
 
 
+class MonitorFlagCliTest(unittest.TestCase):
+    """--monitor {pm5,pm3,pm4,both} CLI behaviour."""
+
+    # Anchor also used in ANCHORS[0], with its pm34 (PM3/PM4) sequence
+    # reproduced from data/dataset.jsonl / the fastmail-808.12 brief.
+    PM34_ANCHOR_KEYS = "B-D-C-4A-2B-E"  # "8 x 500m, 2 minutes rest"
+
+    def _run_main(self, argv, stdin_text=None):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with mock.patch("sys.stdout", stdout), mock.patch("sys.stderr", stderr):
+            if stdin_text is not None:
+                with mock.patch("sys.stdin", io.StringIO(stdin_text)):
+                    code = cli.main(argv)
+            else:
+                code = cli.main(argv)
+        return code, stdout.getvalue(), stderr.getvalue()
+
+    def test_monitor_pm3_prints_pm34_line(self):
+        text, _pm5_keys = ANCHORS[0]
+        code, out, err = self._run_main([text, "--no-llm", "--monitor", "pm3"])
+        self.assertEqual(code, 0)
+        lines = out.splitlines()
+        self.assertEqual(lines[0], text)
+        self.assertEqual(lines[1], f"PM3/PM4: {self.PM34_ANCHOR_KEYS}")
+        self.assertEqual(len(lines), 2)
+
+    def test_monitor_pm4_is_an_alias_of_pm3(self):
+        text, _pm5_keys = ANCHORS[0]
+        code_pm3, out_pm3, _err_pm3 = self._run_main([text, "--no-llm", "--monitor", "pm3"])
+        code_pm4, out_pm4, _err_pm4 = self._run_main([text, "--no-llm", "--monitor", "pm4"])
+        self.assertEqual(code_pm3, 0)
+        self.assertEqual(code_pm4, 0)
+        self.assertEqual(out_pm3, out_pm4)
+
+    def test_monitor_both_prints_pm34_line_first_then_pm5(self):
+        text, pm5_keys = ANCHORS[0]
+        code, out, err = self._run_main([text, "--no-llm", "--monitor", "both"])
+        self.assertEqual(code, 0)
+        lines = out.splitlines()
+        self.assertEqual(lines[0], text)
+        self.assertEqual(lines[1], f"PM3/PM4: {self.PM34_ANCHOR_KEYS}")
+        self.assertEqual(lines[2], f"PM5: {pm5_keys}")
+        self.assertEqual(len(lines), 3)
+
+    def test_monitor_both_explain_prints_both_traces_with_headings(self):
+        code, out, err = self._run_main(["2000m", "--no-llm", "--monitor", "both", "--explain"])
+        self.assertEqual(code, 0)
+        lines = out.splitlines()
+        self.assertIn("PM3/PM4:", lines)
+        self.assertIn("PM5:", lines)
+        # The PM3/PM4 heading must come before the PM5 heading.
+        self.assertLess(lines.index("PM3/PM4:"), lines.index("PM5:"))
+
+    def test_monitor_pm5_default_unaffected(self):
+        text, pm5_keys = ANCHORS[0]
+        code, out, err = self._run_main([text, "--no-llm"])
+        self.assertEqual(code, 0)
+        lines = out.splitlines()
+        self.assertEqual(lines[1], f"PM5: {pm5_keys}")
+        self.assertEqual(len(lines), 2)
+
+    def test_monitor_pm3_calorie_workout_exits_2(self):
+        code, out, err = self._run_main(["250 Calories", "--no-llm", "--monitor", "pm3"])
+        self.assertEqual(code, 2)
+        self.assertIn("PM3/PM4", err)
+        self.assertIn("calorie", err.lower())
+        self.assertEqual(out, "")
+
+    def test_monitor_pm4_calorie_workout_exits_2(self):
+        code, out, err = self._run_main(["250 Calories", "--no-llm", "--monitor", "pm4"])
+        self.assertEqual(code, 2)
+        self.assertEqual(out, "")
+
+    def test_monitor_both_calorie_workout_prints_pm5_and_not_supported_line(self):
+        code, out, err = self._run_main(["250 Calories", "--no-llm", "--monitor", "both"])
+        self.assertEqual(code, 0)
+        lines = out.splitlines()
+        self.assertEqual(lines[0], "250 Calories")
+        self.assertIn("PM3/PM4: not supported (calorie workouts)", lines)
+        self.assertTrue(any(line.startswith("PM5: ") for line in lines))
+        # PM3/PM4 line still comes first.
+        pm34_idx = next(i for i, line in enumerate(lines) if line.startswith("PM3/PM4:"))
+        pm5_idx = next(i for i, line in enumerate(lines) if line.startswith("PM5:"))
+        self.assertLess(pm34_idx, pm5_idx)
+
+    def test_invalid_monitor_choice_rejected_by_argparse(self):
+        with self.assertRaises(SystemExit) as ctx:
+            self._run_main(["2000m", "--no-llm", "--monitor", "pm2"])
+        self.assertNotEqual(ctx.exception.code, 0)
+
+
 class FormatExplainTest(unittest.TestCase):
     def test_does_not_collapse_unrelated_same_letter_actions(self):
         # Same press letter, but different screens -- must not collapse.
