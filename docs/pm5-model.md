@@ -5,12 +5,42 @@ machine that [`pm5_model.py`](../src/pm5keys/pm5_model.py) simulates —
 what screen you land on for each button press, starting from the Main
 Menu, and what workout ends up programmed. See
 [notation.md](notation.md) for the button-press notation itself
-(`B-2D-5A-2B-E` and friends).
+(`B-2D-5A-2B-E` and friends — that particular sequence is the
+RowErg/SkiErg button-press sequence for "8 x 500m, 2 minutes rest";
+BikeErg's sequence for the same workout differs, since BikeErg
+distances are typically doubled).
 
 Everything below was reverse-engineered against every gold
 `(title, pm5, spec)` row in `data/spec_parsed.jsonl` — 116 rows scraped
 from Concept2's public WOD pages. See "How this was derived" at the
 bottom for the numbers behind that claim.
+
+## Glossary
+
+Terms used below to categorise how a gold row compares against
+`pm5keys`'s own compiled sequence or simulated result (see "The
+evidence table" for the full counts):
+
+- **EXACT** — `pm5keys` compiles the workout to the exact same button
+  sequence Concept2 published.
+- **EQUIVALENT** — `pm5keys` compiles a *different* button sequence
+  than Concept2 published, but simulating both sequences produces the
+  same resulting workout (same button path is not required, just the
+  same end state).
+- **GOLD_VARIABLE** — Concept2's published sequence programmed the
+  workout through the PM5's Variable-interval screen even though every
+  interval has identical work/rest — a shape the fixed-interval
+  screens could have programmed directly. `pm5keys` compiles the
+  simpler fixed-screen sequence instead; this category records that
+  Concept2's own sequence, while different, still simulates to the
+  same workout.
+- **GOLD_MISMATCH** — Concept2's published sequence, when simulated,
+  produces a workout that does not match its own title/description
+  (i.e. gold itself looks wrong). `pm5keys` compiles what the
+  title/description actually says, not gold's apparent error.
+- **MODEL_ERROR** — the simulator or compiler failed outright on a
+  gold row (an internal bug), rather than producing a sequence that
+  can be compared to gold at all. There are currently 0 of these.
 
 ## The menu tree
 
@@ -90,7 +120,8 @@ interval screens:
    position every time the entry screen is (re-)opened via a type
    letter, regardless of what value is retained.
 4. **The last interval's rest is never meaningfully set.** The
-   WorkoutSpec schema (see `docs/SPEC.md`) doesn't record a rest value
+   internal workout representation `pm5keys` compiles from (the
+   WorkoutSpec, see `docs/SPEC.md`) doesn't record a rest value
    for the final interval, so `pm5keys` never emits a rest edit for it
    when compiling — whatever the screen happens to be holding (the
    type's default, or a value retained from an earlier interval of the
@@ -101,8 +132,9 @@ interval screens:
    finishes the whole workout.
 
 Because the type-reselect press (rule 1) uses the same physical
-button as that type's screen edits, and [notation.md](notation.md)'s
-canonical-form merging doesn't know about screen boundaries, a
+button as that type's screen edits, and notation.md's
+[canonical-form merging rule](notation.md#canonical-form-and-the-merging-rule)
+doesn't know about screen boundaries, a
 same-type reselect routinely fuses with the interval's own digit edits.
 For example, the calorie ladder 50-40-30-20-10 gold sequence is:
 
@@ -129,8 +161,10 @@ Examples:
 ### The interval count is never encoded
 
 Nothing in the key sequence says how many intervals there are for a
-*fixed*-kind interval workout (`intervals_distance` / `intervals_time`
-/ `intervals_calorie`) — the PM5's fixed-interval screens only ever
+workout with fixed (identical) work/rest on every interval — distance,
+time, or calorie-based (`intervals_distance` / `intervals_time` /
+`intervals_calorie` in the internal spec kind) — the PM5's
+fixed-interval screens only ever
 program *one* interval's work/rest values; the monitor itself repeats
 it however many times you tell it separately (or run manually). Gold
 confirms this directly: "4 x 1000m / 1 min easy" (RowErg and SkiErg,
@@ -210,9 +244,10 @@ gold:
 ### The evidence table
 
 Counts below are computed directly from `data/spec_parsed.jsonl` by
-`spec.kind` (116 gold rows total: 24 single_distance, 3 single_time, 1
-single_calorie, 32 intervals_distance, 23 intervals_time, 4
-intervals_calorie, 29 intervals_variable):
+workout kind (the internal spec's `kind` field; 116 gold rows total: 24
+single distance, 3 single time, 1 single calorie, 32 fixed distance
+intervals, 23 fixed time intervals, 4 fixed calorie intervals, 29
+variable intervals):
 
 | Screen / rule | Gold rows exercising it | Note |
 |---|---|---|
