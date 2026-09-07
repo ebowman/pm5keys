@@ -32,18 +32,11 @@ import shutil
 import subprocess
 from typing import Protocol
 
-# Model id resolution: this constant is the current Sonnet model id
-# used by AnthropicBackend when no explicit model is given. Per the
-# task brief, this should be sourced from the "claude-api" skill --
-# however, no such skill exists anywhere on this machine (searched
-# ~/.claude, ~/.codex, ~/.agents, and all installed plugin
-# marketplaces; a ToolSearch for a "Skill" tool also found nothing).
-# There is also no ANTHROPIC_API_KEY available in this environment to
-# query the /v1/models endpoint directly. This value is therefore a
-# best-effort placeholder based on public documentation, NOT verified
-# against a live skill or API as instructed -- flagged as a blocker in
-# the task report.
-DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-5-20250929"
+# Default model for AnthropicBackend. Current Anthropic model ids carry no
+# date suffix; 'claude-opus-5' is the documented default and
+# 'claude-sonnet-5' the current cheaper option (override with --model).
+# Current models reject the temperature parameter, so it is not sent.
+DEFAULT_ANTHROPIC_MODEL = "claude-opus-5"
 
 CLAUDE_TIMEOUT_S = 120
 
@@ -180,7 +173,6 @@ class AnthropicBackend:
             response = self._client.messages.create(
                 model=model_id,
                 max_tokens=1024,
-                temperature=0,
                 system=_ANTHROPIC_SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": prompt}],
             )

@@ -171,7 +171,7 @@ class AnthropicBackendTest(unittest.TestCase):
         kwargs = fake_module._captured["create_kwargs"]
         self.assertEqual(kwargs["model"], "claude-sonnet-x")
         self.assertEqual(kwargs["max_tokens"], 1024)
-        self.assertEqual(kwargs["temperature"], 0)
+        self.assertNotIn("temperature", kwargs)
         self.assertIn("JSON only", kwargs["system"])
         self.assertEqual(kwargs["messages"], [{"role": "user", "content": "extract this workout"}])
 
