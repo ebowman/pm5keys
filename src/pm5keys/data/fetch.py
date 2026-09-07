@@ -19,7 +19,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 
 DEFAULT_OUT = "raw"
 DEFAULT_SINCE = "2022-07-01"
@@ -88,7 +88,7 @@ def load_missing(path: str) -> dict:
     missing = {}
     if not os.path.exists(path):
         return missing
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         for line in f:
             line = line.rstrip("\n")
             if not line.strip():
@@ -132,7 +132,7 @@ def _fetch_with_retries(url: str, fetch_fn, delay: float, sleep_fn):
     """
     last_reason = ""
     last_5xx_status = None
-    for attempt, backoff in enumerate((0,) + RETRY_BACKOFFS):
+    for _attempt, backoff in enumerate((0,) + RETRY_BACKOFFS):
         if backoff:
             sleep_fn(backoff)
         try:

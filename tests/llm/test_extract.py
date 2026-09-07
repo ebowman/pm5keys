@@ -13,7 +13,6 @@ from unittest import mock
 from pm5keys.llm import extract as ex
 from pm5keys.llm.backends import ExtractError
 
-
 SIMPLE_POOL = [
     {
         "title": "8 x 500m, 2 minutes rest",

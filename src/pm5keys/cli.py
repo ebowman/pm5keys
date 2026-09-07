@@ -68,10 +68,9 @@ import json
 import re
 import sys
 
-from . import compile_keys
+from . import __version__, compile_keys
 from . import pm5_model as pm5
 from .spec import parse_spec
-from . import __version__
 
 
 class Wod2KeysError(Exception):
@@ -125,10 +124,10 @@ def run(
             extract_error_types = (Exception,)
         else:
             try:
-                from .llm import extract_spec, resolve_backend, ExtractError
+                from .llm import ExtractError, extract_spec, resolve_backend
                 from .llm.backends import NoneBackend
-            except ImportError:
-                raise Wod2KeysError(_UNPARSED_NO_LLM_HINT)
+            except ImportError as exc:
+                raise Wod2KeysError(_UNPARSED_NO_LLM_HINT) from exc
 
             try:
                 backend = resolve_backend(llm)

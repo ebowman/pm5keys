@@ -124,7 +124,7 @@ def assign(rows: list[dict], seed: int, eval_frac: float) -> tuple[list[dict], l
     # Count distinct identities per machines label across the whole
     # dataset.
     identity_count_by_machines: dict[str, int] = {}
-    for key, machines_set in machines_by_key.items():
+    for _key, machines_set in machines_by_key.items():
         for machines in machines_set:
             identity_count_by_machines[machines] = identity_count_by_machines.get(machines, 0) + 1
 
@@ -158,7 +158,7 @@ def _sort_key(row: dict) -> tuple:
 
 def _read_jsonl(path: str) -> list[dict]:
     rows = []
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -239,7 +239,8 @@ def _run_cli(argv: list[str]) -> int:
     print("rows by machines:")
     for machines in all_machines:
         print(
-            f"  {machines}: train={train_machines.get(machines, 0)} eval={eval_machines.get(machines, 0)}"
+            f"  {machines}: train={train_machines.get(machines, 0)} "
+            f"eval={eval_machines.get(machines, 0)}"
         )
 
     return 0

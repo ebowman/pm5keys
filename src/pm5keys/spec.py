@@ -1316,7 +1316,8 @@ def main(argv=None) -> int:
             else:
                 print(
                     "usage: spec.py --coverage <dataset.jsonl> "
-                    f"[--parsed {_DEFAULT_COVERAGE_PARSED}] [--unparsed {_DEFAULT_COVERAGE_UNPARSED}]",
+                    f"[--parsed {_DEFAULT_COVERAGE_PARSED}] "
+                    f"[--unparsed {_DEFAULT_COVERAGE_UNPARSED}]",
                     file=sys.stderr,
                 )
                 return 2

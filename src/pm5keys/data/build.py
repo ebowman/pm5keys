@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Build the Concept2 WOD -> PM5 key-sequence training dataset.
 
-Reads every raw WOD web page (wod/raw/*.html), parses each one with
+Reads every raw WOD web page (raw/*.html), parses each one with
 parse_wod.parse_html (imported directly -- no shelling out), and flattens
 the resulting records into one row per (page, machine group) that carries
 a usable PM5 sequence. Writes three committed files:
 
-    wod/dataset.jsonl
+    data/dataset.jsonl
         One row per (date, machines group) with a valid pm5 sequence:
         {date, machines, title, description, pm5, pm5_expanded, pm34,
          source_url}.
@@ -22,7 +22,7 @@ a usable PM5 sequence. Writes three committed files:
         Rows are sorted by date, then by the group's original order
         within that page.
 
-    wod/dataset_rejects.jsonl
+    data/dataset_rejects.jsonl
         One row per (date, machines group) that was *not* emitted to
         dataset.jsonl, because its pm5 was missing or failed
         keyseq.validate. Includes the original group dict and a
@@ -31,7 +31,7 @@ a usable PM5 sequence. Writes three committed files:
         (even if empty) so the path exists and can be exercised by
         tests.
 
-    wod/dataset_unique.jsonl
+    data/dataset_unique.jsonl
         Rows from dataset.jsonl deduplicated by key
         (norm(title), norm(description), machines, pm5), where
         norm = casefold + collapse-whitespace + strip. Fields:
@@ -136,7 +136,8 @@ def build_rows(records: list[dict]) -> tuple[list[dict], list[dict]]:
             if pm5_canonical != pm5_raw:
                 canonical_diff_count += 1
                 print(
-                    f"canonical differs: {date} {machines!r}: raw={pm5_raw!r} canonical={pm5_canonical!r}"
+                    f"canonical differs: {date} {machines!r}: "
+                    f"raw={pm5_raw!r} canonical={pm5_canonical!r}"
                 )
 
             pm34 = pm34_raw
@@ -235,7 +236,7 @@ def _parse_all(raw_dir: str) -> tuple[list[dict], list[tuple[str, str]]]:
     for path in _iter_html_files(raw_dir):
         date = _date_from_filename(path)
         try:
-            with open(path, "r", encoding="utf-8", errors="replace") as f:
+            with open(path, encoding="utf-8", errors="replace") as f:
                 html = f.read()
             record = parse_wod.parse_html(html, date)
         except Exception as exc:  # noqa: BLE001 - CLI-level catch-all by design

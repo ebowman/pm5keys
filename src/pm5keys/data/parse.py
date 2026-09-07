@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Parser for Concept2 Workout-of-the-Day pages and emails.
 
-Turns a raw WOD web page (wod/raw/YYYY-MM-DD.html) or the plain-text body
+Turns a raw WOD web page (raw/YYYY-MM-DD.html) or the plain-text body
 of the WOD email (same underlying template, rendered differently) into a
 single structured record::
 
@@ -75,7 +75,7 @@ HTML structure (web page)
 --------------------------
 The web page template does NOT contain '*****' markers anywhere -- those
 are an artifact of the plain-text email rendering only. Inspecting the
-three sample fixtures (wod/fixtures/web/*.html) shows a stable structure
+three sample fixtures (tests/fixtures/web/*.html) shows a stable structure
 instead:
 
   * The page has two <h1> headings in a "feature" cell: the date, and a
@@ -469,7 +469,7 @@ def _run_cli(argv: list[str]) -> int:
     for path in files:
         date = _date_from_filename(path)
         try:
-            with open(path, "r", encoding="utf-8", errors="replace") as f:
+            with open(path, encoding="utf-8", errors="replace") as f:
                 html = f.read()
             record = parse_html(html, date)
         except Exception as exc:  # noqa: BLE001 - CLI-level catch-all by design

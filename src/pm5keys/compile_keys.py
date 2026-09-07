@@ -47,7 +47,8 @@ computed field digit > 9 register meaning the value has too many
 digits for the screen's field count, or rest > 99:59).
 
 CLI:
-    python3 -m pm5keys.compile_keys --verify spec_parsed.jsonl [--out data/reports/compile_report.md]
+    python3 -m pm5keys.compile_keys --verify spec_parsed.jsonl \
+        [--out data/reports/compile_report.md]
         For every row, (i) runs the simulator on the GOLD sequence and
         checks same_workout(sim(gold), spec) -- this validates
         pm5_model's model; (ii) compiles the spec and compares to gold
@@ -69,7 +70,6 @@ import sys
 
 from . import keyseq
 from . import pm5_model as pm5
-
 
 # ---------------------------------------------------------------------------
 # compile()
@@ -139,11 +139,11 @@ def _check_rest_fits(rest_s: int, *, where: str) -> None:
         raise ValueError(f"{where}: rest_s {rest_s} does not fit (0..{_MAX_REST_S})")
 
 
-def _digits_for(screen: "pm5._Screen", value: int) -> list:
+def _digits_for(screen: pm5._Screen, value: int) -> list:
     return pm5._value_to_digits(screen.work_fields, value)
 
 
-def _rest_digits_for(screen: "pm5._Screen", value: int) -> list:
+def _rest_digits_for(screen: pm5._Screen, value: int) -> list:
     return pm5._value_to_digits(screen.rest_fields, value)
 
 
@@ -317,7 +317,7 @@ def same_workout(spec_a: dict, spec_b: dict) -> bool:
         if len(ivs_a) != len(ivs_b):
             return False
         n = len(ivs_a)
-        for i, (a, b) in enumerate(zip(ivs_a, ivs_b)):
+        for i, (a, b) in enumerate(zip(ivs_a, ivs_b, strict=True)):
             if a.get("work") != b.get("work"):
                 return False
             if i < n - 1 and a.get("rest_s") != b.get("rest_s"):

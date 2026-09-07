@@ -12,7 +12,7 @@ EMAIL_DIR = os.path.join(FIXTURES_DIR, "email")
 
 
 def _read(path):
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return f.read()
 
 

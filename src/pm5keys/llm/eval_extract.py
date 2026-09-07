@@ -190,7 +190,7 @@ def _write_report(rows, results, backend, model, k, per_kind, n, n_correct, out_
     lines.append("")
     lines.append("| Title | Kind | Correct | Exact-sequence-match | Note |")
     lines.append("|---|---|---|---|---|")
-    for row, result in zip(rows, results):
+    for row, result in zip(rows, results, strict=True):
         title = row["title"].replace("|", "\\|")
         kind = result["extracted"].get("kind") if result["extracted"] else "n/a"
         correct = "yes" if result["correct"] else "no"
@@ -201,7 +201,9 @@ def _write_report(rows, results, backend, model, k, per_kind, n, n_correct, out_
     lines.append("")
     lines.append("## First 20 mismatches")
     lines.append("")
-    mismatches = [(row, result) for row, result in zip(rows, results) if not result["correct"]]
+    mismatches = [
+        (row, result) for row, result in zip(rows, results, strict=True) if not result["correct"]
+    ]
     for row, result in mismatches[:20]:
         lines.append(f"### {row['title']}")
         lines.append("")
@@ -245,7 +247,7 @@ def main(argv=None) -> int:
     n_correct = sum(1 for r in results if r["correct"])
 
     per_kind: dict = {}
-    for row, result in zip(rows, results):
+    for row, result in zip(rows, results, strict=True):
         rule_spec = spec_mod.parse_spec(
             f"{row['title']}\n{row['description']}", row.get("machines")
         )

@@ -10,9 +10,9 @@ from __future__ import annotations
 __version__ = "0.1.0"
 
 from .compile_keys import compile, explain
-from .spec import parse_spec, validate_spec
-from .keyseq import expand, canonical
+from .keyseq import canonical, expand
 from .pm5_model import run
+from .spec import parse_spec, validate_spec
 
 __all__ = [
     "__version__",

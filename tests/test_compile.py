@@ -6,7 +6,6 @@ from pm5keys import compile_keys as ck
 from pm5keys import keyseq
 from pm5keys import pm5_model as pm5
 
-
 # >= 12 gold (spec, sequence) pairs covering every WorkoutSpec kind,
 # reproduced from the fastmail-es5.11 brief / spec_parsed.jsonl.
 GOLD_COMPILE_CASES = [

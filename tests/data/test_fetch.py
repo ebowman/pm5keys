@@ -48,7 +48,7 @@ class RunFetchTest(unittest.TestCase):
             fetch_fn.assert_not_called()
             self.assertEqual(result["present"], 1)
             self.assertEqual(result["fetched"], 0)
-            with open(existing_path, "r", encoding="utf-8") as f:
+            with open(existing_path, encoding="utf-8") as f:
                 self.assertEqual(f.read(), "already here")
 
     def test_force_refetch(self):
@@ -128,7 +128,7 @@ class RunFetchTest(unittest.TestCase):
             self.assertIn(4, sleep_calls)
 
             missing_path = os.path.join(tmpdir, "missing.txt")
-            with open(missing_path, "r", encoding="utf-8") as f:
+            with open(missing_path, encoding="utf-8") as f:
                 content = f.read()
             self.assertIn("2022-06-15 500", content)
 
@@ -186,7 +186,7 @@ class RunFetchTest(unittest.TestCase):
             fetch_fn.assert_called_once()
 
             missing_path = os.path.join(tmpdir, "missing.txt")
-            with open(missing_path, "r", encoding="utf-8") as f:
+            with open(missing_path, encoding="utf-8") as f:
                 content = f.read()
             self.assertIn("2022-06-15 404", content)
 
@@ -218,7 +218,7 @@ class RunFetchTest(unittest.TestCase):
             self.assertIn(4, sleep_calls)
 
             missing_path = os.path.join(tmpdir, "missing.txt")
-            with open(missing_path, "r", encoding="utf-8") as f:
+            with open(missing_path, encoding="utf-8") as f:
                 content = f.read()
             self.assertIn("2022-07-15 ERR", content)
             self.assertIn("connection refused", content)
@@ -269,8 +269,8 @@ class RunFetchTest(unittest.TestCase):
                 sleep_fn=self._noop_sleep,
             )
 
-            with open(missing_path, "r", encoding="utf-8") as f:
-                lines = [l for l in f.read().splitlines() if l.strip()]
+            with open(missing_path, encoding="utf-8") as f:
+                lines = [line for line in f.read().splitlines() if line.strip()]
             self.assertEqual(len(lines), 1)
             self.assertEqual(lines[0], "2022-06-15 500")
 
@@ -292,8 +292,8 @@ class RunFetchTest(unittest.TestCase):
                 sleep_fn=self._noop_sleep,
             )
 
-            with open(missing_path, "r", encoding="utf-8") as f:
-                lines = [l for l in f.read().splitlines() if l.strip()]
+            with open(missing_path, encoding="utf-8") as f:
+                lines = [line for line in f.read().splitlines() if line.strip()]
             self.assertEqual(lines, [])
 
     def test_limit_stops_after_n_attempted_fetches(self):
@@ -322,7 +322,7 @@ class LoadWriteMissingTest(unittest.TestCase):
             data = {"2022-07-03": "500", "2022-07-01": "ERR timeout"}
             fetch_wod.write_missing(path, data)
 
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 lines = f.read().splitlines()
             self.assertEqual(lines, ["2022-07-01 ERR timeout", "2022-07-03 500"])
 

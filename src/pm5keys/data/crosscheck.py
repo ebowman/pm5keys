@@ -106,7 +106,7 @@ def load_index(fixtures_dir: str) -> dict:
     index_path = os.path.join(fixtures_dir, "index.json")
     if not os.path.exists(index_path):
         return {}
-    with open(index_path, "r", encoding="utf-8") as f:
+    with open(index_path, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -127,7 +127,7 @@ def run_crosscheck(fixtures_dir: str = DEFAULT_FIXTURES, raw_dir: str = DEFAULT_
         date = _date_from_filename(email_path)
         folder = index.get(date, "?")
 
-        with open(email_path, "r", encoding="utf-8") as f:
+        with open(email_path, encoding="utf-8") as f:
             email_text = f.read()
         email_record = parse_wod.parse_text(email_text, date, source="email")
 
@@ -143,7 +143,7 @@ def run_crosscheck(fixtures_dir: str = DEFAULT_FIXTURES, raw_dir: str = DEFAULT_
             )
             continue
 
-        with open(raw_path, "r", encoding="utf-8", errors="replace") as f:
+        with open(raw_path, encoding="utf-8", errors="replace") as f:
             web_html = f.read()
         web_record = parse_wod.parse_html(web_html, date, source="web")
 

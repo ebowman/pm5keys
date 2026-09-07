@@ -172,7 +172,7 @@ class ExplainTest(unittest.TestCase):
         # 'digit[', 'cursor ->') should leak into screen/action text.
         trace = pm5.explain("B-2D-5A-2B-E")
         forbidden = ("main ->", "entry ->", "select_workout", "digit[", "cursor ->", "chooser (")
-        for press, screen, action in trace:
+        for _press, screen, action in trace:
             for token in forbidden:
                 self.assertNotIn(token, screen)
                 self.assertNotIn(token, action)

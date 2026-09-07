@@ -44,9 +44,12 @@ wraparound). E = confirm/advance.
     Single Distance    [10000s,1000s,100s,10s,1s]                default 2000m,  cursor 1000s (idx1)
     Single Time         [hours,10min,min,10s,s]                  default 30:00,  cursor 10min (idx1)
     Single Calorie       [100s,10s,1s]                           default 50,     cursor 10s   (idx1)
-    Intervals: Distance [10000s,1000s,100s,10s,1s]+[10min,min,10s,s]  default 500m/0:00,  cursor 100s (idx2)
-    Intervals: Time      [hours,10min,min,10s,s]+[10min,min,10s,s]   default 1:00/0:00,  cursor min  (idx2)
-    Intervals: Calorie    [100s,10s,1s]+[10min,min,10s,s]         default 50/0:00,   cursor 10s  (idx1)
+    Intervals: Distance [10000s,1000s,100s,10s,1s]+[10min,min,10s,s]
+        default 500m/0:00, cursor 100s (idx2)
+    Intervals: Time      [hours,10min,min,10s,s]+[10min,min,10s,s]
+        default 1:00/0:00, cursor min  (idx2)
+    Intervals: Calorie    [100s,10s,1s]+[10min,min,10s,s]
+        default 50/0:00,   cursor 10s  (idx1)
 
 These field layouts and defaults reproduce, byte for byte, every
 gold single/fixed-interval sequence in spec_parsed.jsonl, e.g.:
@@ -130,7 +133,6 @@ this module against spec_parsed.jsonl.
 from __future__ import annotations
 
 from . import keyseq
-
 
 # ---------------------------------------------------------------------------
 # Screen field layouts
@@ -249,7 +251,7 @@ _SINGLE_KIND_FOR_UNIT = {
 
 def _digits_to_value(fields, digit_values):
     total = 0
-    for place, dv in zip(fields, digit_values):
+    for place, dv in zip(fields, digit_values, strict=True):
         total += place * dv
     return total
 

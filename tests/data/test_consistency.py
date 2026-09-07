@@ -167,7 +167,7 @@ class RenderMarkdownTest(unittest.TestCase):
         stats = check_consistency.sequence_stats(rows)
 
         markdown = check_consistency.render_markdown(
-            "wod/dataset.jsonl",
+            "data/dataset.jsonl",
             len(rows),
             label_conflicts,
             title_conflicts,
@@ -176,7 +176,7 @@ class RenderMarkdownTest(unittest.TestCase):
         )
 
         self.assertIn("generated, not hand-edited", markdown)
-        self.assertIn("wod/dataset.jsonl", markdown)
+        self.assertIn("data/dataset.jsonl", markdown)
         self.assertIn("2 rows", markdown)
         self.assertIn("1. Label conflicts", markdown)
         self.assertIn("1b. Title conflicts", markdown)

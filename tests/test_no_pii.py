@@ -70,7 +70,7 @@ def _load_local_patterns():
         return []
 
     patterns = []
-    with open(LOCAL_PATTERNS_FILE, "r", encoding="utf-8") as fh:
+    with open(LOCAL_PATTERNS_FILE, encoding="utf-8") as fh:
         for line in fh:
             stripped = line.strip()
             if not stripped or stripped.startswith("#"):
@@ -94,7 +94,7 @@ def _is_fixtures_file(path):
 
 def _read_lines(path):
     try:
-        with open(path, "r", encoding="utf-8", errors="strict") as fh:
+        with open(path, encoding="utf-8", errors="strict") as fh:
             return fh.readlines()
     except (UnicodeDecodeError, OSError):
         # Binary or unreadable file -- skip it, nothing textual to scan.

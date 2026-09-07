@@ -13,7 +13,6 @@ from unittest import mock
 from pm5keys.llm import eval_direct as ed
 from pm5keys.llm import eval_extract as ee
 
-
 SIMPLE_POOL_DIRECT = [
     {
         "title": "8 x 500m, 2 minutes rest",
