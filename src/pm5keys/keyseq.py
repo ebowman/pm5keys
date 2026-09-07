@@ -23,7 +23,7 @@ then re-compressing it merges adjacent tokens for the same letter, e.g.
 is physically identical to three consecutive presses of B, so the two
 notations are equivalent and collapse to the same canonical form.
 
-See docs/PM5_KEYS.md for the full grammar, the physical button layout,
+See docs/notation.md for the full grammar, the physical button layout,
 and worked examples.
 """
 

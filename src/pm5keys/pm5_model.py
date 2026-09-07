@@ -4,7 +4,7 @@
 This module answers the question keyseq.py explicitly leaves open:
 given a sequence of button presses starting from the Main Menu, what
 workout ends up programmed? PM5.press(key) advances one physical
-button press; PM5.run(seq) expands a PM5_KEYS.md-notation sequence
+button press; PM5.run(seq) expands a docs/notation.md-notation sequence
 (via keyseq.expand) and interprets it into a WorkoutSpec-shaped dict
 (see docs/SPEC.md).
 
@@ -28,7 +28,7 @@ Machine (rower/skierg/bikeerg/all) never changes any key; a BikeErg
 distance override is already baked into the spec's numeric work
 values by the time this module sees them. The FIXED interval COUNT
 is never encoded in the key sequence at all -- gold confirms this
-(4x1000/r60 and 5x1000/r60 press identically; PM5_KEYS.md's own
+(4x1000/r60 and 5x1000/r60 press identically; docs/notation.md's own
 worked example, 8x500m/r120, is `B-2D-5A-2B-E` with no count
 information anywhere).
 
@@ -323,7 +323,7 @@ class PM5:
         handler(key)
 
     def run(self, seq: str) -> dict:
-        """Expand and execute a PM5_KEYS.md sequence from the Main Menu;
+        """Expand and execute a docs/notation.md sequence from the Main Menu;
         return the resulting workout as a WorkoutSpec-like dict (kind,
         work/rest_s or intervals; count omitted; machine 'all')."""
         for key in keyseq.expand(seq):

@@ -1,13 +1,14 @@
 # PM5 button-press notation
 
-Concept2's Workout-of-the-Day (WOD) pages describe how to program a
-workout into the PM5 monitor using a compact key-sequence notation, e.g.
-`B-2D-5A-2B-E`. This document specifies that notation and the grammar
-implemented by `wod/keyseq.py`.
+Concept2's [Workout of the Day (WOD)](https://www.concept2.com/training/wod)
+pages describe how to program a workout into the PM5 monitor using a
+compact key-sequence notation, e.g. `B-2D-5A-2B-E`. This document specifies
+that notation and the grammar implemented by `pm5keys/keyseq.py`.
 
 ## Legend
 
-Quoted verbatim from Concept2's WOD page:
+Quoted verbatim from Concept2's WOD page
+(<https://www.concept2.com/training/wod>):
 
 > Starting from the Main Menu, "A" corresponds to the top gray button on
 > the right, "B" corresponds to the second gray button on the right, and
@@ -30,7 +31,9 @@ the screen:
 Each button acts on whatever menu item or field is displayed on the
 screen next to it at the time it is pressed — the same physical button
 (e.g. "A") can mean something different at each step of a sequence,
-depending on which menu is currently showing.
+depending on which menu is currently showing. For what each button
+actually *does* on each screen (Main Menu, Select Workout, the entry
+screens, etc.), see [pm5-model.md](pm5-model.md).
 
 ## Grammar
 
@@ -67,6 +70,10 @@ differently. For example, `2B-B` and `3B` both expand to `["B", "B",
 a meaningfully different instruction from `3B`, just a differently
 segmented way of writing three consecutive presses of B.
 
+This merging rule also explains why menu-selection presses routinely
+fuse, in written sequences, with the first press on an entry screen —
+see [pm5-model.md](pm5-model.md)'s note on chooser/entry-screen fusion.
+
 ## Worked examples
 
 ### Example 1: `B-2D-5A-2B-E`
@@ -82,6 +89,12 @@ From the WOD "8 x 500m, 2 minutes rest":
 | `E`   | press E once         |
 
 Expansion: `B, D, D, A, A, A, A, A, B, B, E` (11 presses).
+
+Examples:
+
+| Text | PM5 |
+|---|---|
+| 8 x 500m, 2 minutes rest | B-2D-5A-2B-E |
 
 ### Example 2: `2B-B` (canonicalisation)
 
@@ -100,13 +113,35 @@ expands to 37 individual button presses, starting `B, D, D, D, D, A, A,
 A, A, B, B, E, D, B, E, ...` and ending `..., D, C, E, D, C, E, E` (the
 final `2E` token expanding to two adjacent `E` presses).
 
-## What each button does
+## Reading a `pm5keys --explain` trace
 
 This notation only records *which* button is pressed and how many times
 in a row — it says nothing about what each press actually does, because
 that depends entirely on which PM5 screen is displayed at that point in
-the sequence (Main Menu, workout type selection, interval count entry,
-etc.). Modeling the PM5's menu/screen state machine, so that a sequence
-like `B-2D-5A-2B-E` can be interpreted into an actual workout
-definition, is out of scope for this module and is handled separately
-in `pm5_model.py` (a later task).
+the sequence (Main Menu, workout type selection, interval entry, etc.).
+`pm5keys --explain "<text>"` runs the sequence through the PM5 menu
+simulator ([pm5-model.md](pm5-model.md)) and prints one line per press,
+showing the screen the press happened on and what it did, e.g.:
+
+```
+$ pm5keys --llm none --explain "4 x 3 min / 2 min easy"
+4 x 3 min / 2 min easy
+PM5: B-2D-3B-4A-2B-E
+B    Main Menu      : Select Workout
+D    Select Workout : New Workout
+D    New Workout    : Intervals
+B    Intervals      : Time
+2xB  Intervals: Time: time minutes digit +2 (now 3)
+4xA  Intervals: Time: cursor right to rest minutes
+2xB  Intervals: Time: rest minutes +2 (now 2)
+E    Intervals: Time: confirm
+```
+
+Each line is `<press(es)>  <screen>: <action>`. Consecutive presses on
+the same screen that share the same letter and whose actions differ only
+in the trailing "(now N)" value or cursor destination are collapsed to
+`<n>x<press>` — e.g. `2xB  Intervals: Time: time minutes digit +2 (now
+3)` means B was pressed twice in a row on the Intervals: Time entry
+screen, taking the minutes digit from 1 (the screen's default) to 3.
+The final row's action is always `confirm` (single/fixed workouts) or,
+for Intervals: Variable, `finish workout` on the last press.

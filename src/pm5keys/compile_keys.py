@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Compile a WorkoutSpec (see docs/SPEC.md) into a canonical PM5 key
-sequence (see docs/PM5_KEYS.md), the reverse direction of pm5_model.py's
+sequence (see docs/notation.md), the reverse direction of pm5_model.py's
 simulator.
 
 Compile strategy ("canonical editing strategy"), which reproduces every

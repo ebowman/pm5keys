@@ -16,7 +16,7 @@ both the few-shot pool (--train, default data/train.jsonl) and the
 eval set (--eval, default data/eval.jsonl).
 
 Prompt: the package-data EVAL_PROMPT.md, filled in with {legend} (the
-contents of docs/PM5_KEYS.md), {examples} (K few-shot 'Workout: <title>.
+contents of docs/notation.md), {examples} (K few-shot 'Workout: <title>.
 <description>' / 'PM5: <pm5>' pairs from non-BikeErg --train rows chosen
 by pm5keys.llm.extract's difflib title-similarity ranking), and {text}
 (the eval workout, phrased the same way as the examples, plus the
@@ -72,7 +72,7 @@ _PACKAGE_ROOT = os.path.dirname(os.path.dirname(_LLM_DIR))
 _REPO_ROOT = os.path.dirname(_PACKAGE_ROOT)
 
 PROMPT_PATH = os.path.join(_LLM_DIR, "EVAL_PROMPT.md")
-LEGEND_PATH = os.path.join(_REPO_ROOT, "docs", "PM5_KEYS.md")
+LEGEND_PATH = os.path.join(_REPO_ROOT, "docs", "notation.md")
 DEFAULT_EVAL_PATH = os.path.join(_REPO_ROOT, "data", "eval.jsonl")
 DEFAULT_TRAIN_PATH = os.path.join(_REPO_ROOT, "data", "train.jsonl")
 DEFAULT_OUT_PATH = os.path.join(_REPO_ROOT, "data", "reports", "eval_report.md")

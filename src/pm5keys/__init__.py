@@ -1,7 +1,7 @@
 """pm5keys: turn a rowing workout description into the Concept2 PM5
 button-press sequence.
 
-See docs/SPEC.md for the WorkoutSpec schema and docs/PM5_KEYS.md for
+See docs/SPEC.md for the WorkoutSpec schema and docs/notation.md for
 the PM5 button-press notation.
 """
 
