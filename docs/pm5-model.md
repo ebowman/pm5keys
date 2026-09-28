@@ -130,6 +130,18 @@ interval screens:
 5. **One final E** — after the last interval's own confirming E, a
    second E (typically written fused as the sequence's trailing `2E`)
    finishes the whole workout.
+6. **At most 50 legs.** The Variable screen has no way to display or
+   scroll past a 51st interval, so `pm5keys` refuses to compile an
+   `intervals_variable` spec with more than 50 legs (`compile_keys`
+   raises, and the CLI exits 2 with `variable intervals: <n> legs
+   exceeds the PM5 limit of 50`). This is enforced only where a spec is
+   compiled to keys, never in `validate_spec` — a WorkoutSpec longer
+   than 50 legs is a legitimate description of a workout, it's just one
+   the PM5's own Variable screen can't hold. PM3/PM4 is assumed to
+   share the same 50-leg limit (see [PM3 and PM4](#pm3-and-pm4) below);
+   Concept2's own documentation does not state a PM3 figure, so this is
+   an assumption carried over from the PM5 behaviour, not an observed
+   fact.
 
 Because the type-reselect press (rule 1) uses the same physical
 button as that type's screen edits, and notation.md's
@@ -155,6 +167,26 @@ Examples:
 | Text | PM5 |
 |---|---|
 | 50 - 40 - 30 - 20 - 10 Cals with 2 minutes easy | B-3D-B-3A-2B-E-B-C-E-B-C-E-B-C-E-B-C-2E |
+
+## Session workouts fold into one Variable-interval spec
+
+A "warm-up, N work/rest sets, cool-down" session (the session matcher
+in `src/pm5keys/spec.py`) compiles to a single `intervals_variable`
+spec — the warm-up becomes the first leg (its rest is the first set's
+own rest value, since the warm-up leg still needs *some* rest value to
+hand off into the first work interval), each set expands into `count`
+identical legs, and the cool-down (if present) becomes the last leg
+with `rest_s: 0`; with no cool-down, the last set's own last leg
+becomes the final leg instead. A generalized comma/slash chain of
+work/rest legs (any mix of distance/time/calorie work, in-order,
+optional qualifiers on work legs) compiles the same way, one leg per
+work mention. Both shapes are subject to the same 50-leg Variable
+Intervals cap above.
+
+| Text | PM5 |
+|---|---|
+| 7 min warm-up, 10 x 1 min hard / 1 min light, 3 min cool-down | B-4D-6B-4A-B-E-D-6C-E-D-E-D-E-D-E-D-E-D-E-D-E-D-E-D-E-D-E-D-2B-2E |
+| 6 minutes easy, 1 minute rest, 1 minute hard, 1 minute rest, 1 minute hard, 1 minute rest, 1 minute hard, 1 minute rest, 1 minute hard, 1 minute rest, 1 minute hard, 1 minute rest, 1 minute hard, 1 minute rest, 1 minute hard, 1 minute rest, 1 minute hard, 1 minute rest, 1 minute hard, 1 minute rest, 1 minute hard, 1 minute rest, 3 minutes easy | B-4D-5B-4A-B-E-D-5C-E-D-E-D-E-D-E-D-E-D-E-D-E-D-E-D-E-D-E-D-2B-2E |
 
 ## Facts a rower will find surprising
 
