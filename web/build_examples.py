@@ -27,6 +27,20 @@ _ROWERG_MACHINES = {"RowErg and SkiErg", "All Machines"}
 _DEFAULT_DATASET = os.path.join("data", "dataset_unique.jsonl")
 _DEFAULT_OUT = os.path.join("web", "examples.js")
 
+# Hand-curated examples showcasing session workouts (warm-up + N x WORK/REST
+# sets + cool-down, and long explicit interval chains) that aren't
+# represented among the top dataset titles. Appended after the
+# dataset-derived examples.
+EXTRA_EXAMPLES = [
+    "7 min warm-up, 10 x 1 min hard / 1 min light, 3 min cool-down",
+    "6 minutes easy, 1 minute rest, 1 minute hard, 1 minute rest, 1 minute "
+    "hard, 1 minute rest, 1 minute hard, 1 minute rest, 1 minute hard, 1 "
+    "minute rest, 1 minute hard, 1 minute rest, 1 minute hard, 1 minute "
+    "rest, 1 minute hard, 1 minute rest, 1 minute hard, 1 minute rest, 1 "
+    "minute hard, 1 minute rest, 1 minute hard, 1 minute rest, 3 minutes "
+    "easy",
+]
+
 
 def load_top_titles(dataset_path: str, n: int) -> list[str]:
     """Return the top n titles by count from dataset_path, restricted
@@ -63,7 +77,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("-n", type=int, default=8)
     args = parser.parse_args(argv)
 
-    titles = load_top_titles(args.dataset, args.n)
+    titles = load_top_titles(args.dataset, args.n) + EXTRA_EXAMPLES
     write_examples_js(titles, args.out)
     print(f"wrote {len(titles)} example titles to {args.out}")
     for title in titles:

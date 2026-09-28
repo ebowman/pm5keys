@@ -8,5 +8,7 @@ const PM5KEYS_EXAMPLES = [
   "4/3/2/1/2/3/4 minutes with 2 minutes rest",
   "12 x 250m / 45 sec easy",
   "2 min, 3 min, 4 min, 3 min, 2 min pyramid / 2 min easy",
-  "2000/1500/1000/500m with three minutes rest"
+  "2000/1500/1000/500m with three minutes rest",
+  "7 min warm-up, 10 x 1 min hard / 1 min light, 3 min cool-down",
+  "6 minutes easy, 1 minute rest, 1 minute hard, 1 minute rest, 1 minute hard, 1 minute rest, 1 minute hard, 1 minute rest, 1 minute hard, 1 minute rest, 1 minute hard, 1 minute rest, 1 minute hard, 1 minute rest, 1 minute hard, 1 minute rest, 1 minute hard, 1 minute rest, 1 minute hard, 1 minute rest, 1 minute hard, 1 minute rest, 3 minutes easy"
 ];
