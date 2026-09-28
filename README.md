@@ -87,7 +87,9 @@ no traceback, when: the input text is empty; the rules can't parse the
 text and `--llm none`/`--no-llm` was given; the resolved LLM backend is
 unavailable when the fallback is needed (e.g. the `llm` extra isn't
 installed, or no API key/CLI is configured); the LLM extractor fails;
-the parsed spec fails to compile into keys; or (for a single
+the parsed spec fails to compile into keys (including a variable-interval
+workout with more legs than the target monitor's Intervals: Variable
+screen holds -- 50 legs on both PM5 and PM3/PM4); or (for a single
 `--monitor pm3`/`pm4` target only) the workout is a calorie workout,
 which PM3/PM4 don't support (`--monitor both` degrades gracefully
 instead — see [docs/pm3-model.md](docs/pm3-model.md)).

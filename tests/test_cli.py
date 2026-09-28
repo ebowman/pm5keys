@@ -354,6 +354,31 @@ class MonitorFlagCliTest(unittest.TestCase):
             self._run_main(["2000m", "--no-llm", "--monitor", "pm2"])
         self.assertNotEqual(ctx.exception.code, 0)
 
+    @staticmethod
+    def _variable_chain_text(n_legs):
+        # n_legs of "1 minute hard" separated by ", 1 minute rest, " --
+        # a comma-separated intervals_variable chain the rules parser
+        # handles with no leg-count cap of its own (see
+        # test_variable_chain_twelve_legs in test_spec.py); only
+        # compile_keys.compile enforces the PM5/PM3 leg limit.
+        return ", 1 minute rest, ".join(["1 minute hard"] * n_legs)
+
+    def test_variable_chain_51_legs_exits_2_no_traceback(self):
+        text = self._variable_chain_text(51)
+        code, out, err = self._run_main([text, "--no-llm"])
+        self.assertEqual(code, 2)
+        self.assertEqual(
+            err.strip(), "variable intervals: 51 legs exceeds the PM5 limit of 50"
+        )
+        self.assertNotIn("Traceback", err)
+        self.assertEqual(out, "")
+
+    def test_variable_chain_50_legs_exits_0(self):
+        text = self._variable_chain_text(50)
+        code, out, err = self._run_main([text, "--no-llm"])
+        self.assertEqual(code, 0)
+        self.assertEqual(err, "")
+
 
 class FormatExplainTest(unittest.TestCase):
     def test_does_not_collapse_unrelated_same_letter_actions(self):

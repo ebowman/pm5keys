@@ -147,6 +147,12 @@ _MAX_REST_S = 99 * 60 + 59
 _MAX_TIME_S = 9 * 3600 + 59 * 60 + 59  # 9:59:59, the widest the 5-digit time screen holds
 _MAX_CALORIES = 999
 
+# PM5's Intervals: Variable screen holds at most 50 legs. docs/pm3-model.md
+# documents no PM3/PM4-specific leg limit for Intervals: Variable, so the
+# same 50-leg cap is applied to the pm3 target below.
+PM5_MAX_VARIABLE_LEGS = 50
+_PM3_MAX_VARIABLE_LEGS = 50
+
 
 def _check_value_fits(unit: str, value: int, *, where: str) -> None:
     if unit == "distance_m":
@@ -247,6 +253,15 @@ def _compile_single_or_fixed(spec: dict, monitor: str) -> list:
 
 def _compile_variable(spec: dict, monitor: str) -> list:
     intervals = spec["intervals"]
+
+    if monitor == "pm3":
+        max_legs, label = _PM3_MAX_VARIABLE_LEGS, "PM3/PM4"
+    else:
+        max_legs, label = PM5_MAX_VARIABLE_LEGS, "PM5"
+    if len(intervals) > max_legs:
+        raise ValueError(
+            f"variable intervals: {len(intervals)} legs exceeds the {label} limit of {max_legs}"
+        )
 
     # Main Menu -> Select Workout -> New Workout -> ... -> Variable
     presses = ["B", "D"] + list(_VARIABLE_MENU_KEYS[monitor])
