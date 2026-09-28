@@ -526,6 +526,133 @@ class ParseSpecPatternTest(unittest.TestCase):
         self.assertRaises(ValueError, spec._map_machine, "SurfSki")
 
 
+class ParseSpecSessionTest(unittest.TestCase):
+    """pm5-7bk.3: [WARMUP] SET (SEP SET)* [COOLDOWN] -> one
+    intervals_variable spec."""
+
+    _WARMUP_INTERVALS_COOLDOWN_LEGS = (
+        [{"work": {"time_s": 420}, "rest_s": 60}]
+        + [{"work": {"time_s": 60}, "rest_s": 60}] * 10
+        + [{"work": {"time_s": 180}, "rest_s": 0}]
+    )
+
+    def test_session_warmup_comma_intervals_comma_cooldown(self):
+        text = "7 min warm-up, 10 x 1 min hard / 1 min light, 3 min cool-down"
+        s = spec.parse_spec(text, "All Machines")
+        self.assertEqual(s["kind"], "intervals_variable")
+        self.assertEqual(s["intervals"], self._WARMUP_INTERVALS_COOLDOWN_LEGS)
+        self.assertEqual(len(s["intervals"]), 12)
+
+    def test_session_warmup_then_intervals_then_cooldown_on_off(self):
+        text = "warm up 7 minutes, then 10 x 1:00 on / 1:00 off, then 3 minutes cool down"
+        s = spec.parse_spec(text, "All Machines")
+        self.assertEqual(s["kind"], "intervals_variable")
+        self.assertEqual(s["intervals"], self._WARMUP_INTERVALS_COOLDOWN_LEGS)
+
+    def test_session_easy_light_cues(self):
+        text = "7 min easy, then 10 x 1 min hard / 1 min light, then 3 min easy"
+        s = spec.parse_spec(text, "All Machines")
+        self.assertEqual(s["kind"], "intervals_variable")
+        self.assertEqual(s["intervals"], self._WARMUP_INTERVALS_COOLDOWN_LEGS)
+
+    def test_session_distance_warmup_set_comma_rest_cooldown(self):
+        text = "2k warm-up, 8 x 500m, 2 minutes rest, 1k cool-down"
+        s = spec.parse_spec(text, "All Machines")
+        self.assertEqual(s["kind"], "intervals_variable")
+        expected = (
+            [{"work": {"distance_m": 2000}, "rest_s": 120}]
+            + [{"work": {"distance_m": 500}, "rest_s": 120}] * 8
+            + [{"work": {"distance_m": 1000}, "rest_s": 0}]
+        )
+        self.assertEqual(s["intervals"], expected)
+        self.assertEqual(len(s["intervals"]), 10)
+
+    def test_session_lone_set_stays_intervals_time(self):
+        # No warm-up/cool-down and only one SET -- not a "session",
+        # left to the plain fixed-interval matcher.
+        s = spec.parse_spec("10 x 1 min / 1 min easy", "All Machines")
+        self.assertEqual(s["kind"], "intervals_time")
+        self.assertEqual(s["work"], {"time_s": 60})
+        self.assertEqual(s["rest_s"], 60)
+        self.assertEqual(s["count"], 10)
+
+    def test_session_two_sets_no_warmup_no_cooldown(self):
+        text = "4 x 500m / 1 min rest, then 4 x 250m / 30 sec rest"
+        s = spec.parse_spec(text, "All Machines")
+        self.assertEqual(s["kind"], "intervals_variable")
+        expected = (
+            [{"work": {"distance_m": 500}, "rest_s": 60}] * 4
+            + [{"work": {"distance_m": 250}, "rest_s": 30}] * 3
+            + [{"work": {"distance_m": 250}, "rest_s": 0}]
+        )
+        self.assertEqual(s["intervals"], expected)
+        self.assertEqual(len(s["intervals"]), 8)
+
+    def test_session_set_with_no_rest_unparsed(self):
+        # The middle SET has no rest clause at all -- never guess one.
+        text = "7 min warm-up, 10 x 1 min hard, 3 min cool-down"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_session_unclassified_middle_segment_unparsed(self):
+        text = "7 min warm-up, something weird, 3 min cool-down"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    # --- pm5-7bk.3 review, gap 1: a SET must consume the WHOLE segment;
+    # a partial match must never silently drop trailing content. ---
+
+    def test_session_set_partial_match_trailing_cooldown_unparsed(self):
+        # HEAD (pre-review) silently dropped the cool-down here, giving
+        # 4 legs; the fixed matcher only covers "3 x 4 min / 2 min
+        # rest", leaving " and 3 min cool-down" unaccounted for.
+        text = "7 min warm-up, 3 x 4 min / 2 min rest and 3 min cool-down"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_session_set_partial_match_trailing_second_set_unparsed(self):
+        # HEAD silently dropped the second set here, giving 4 legs.
+        text = "5 min warm-up, 3 x 4 min / 2 min rest and 2 x 1000m / 3 min rest"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_session_set_partial_match_trailing_extra_work_unparsed(self):
+        # HEAD silently dropped the "2k steady" leg here.
+        text = "7 min warm-up, 4 x 500m / 1 min rest plus 2k steady, 3 min cool-down"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_session_set_partial_match_trailing_cooldown_after_comma_unparsed(self):
+        # HEAD silently dropped the "1k easy" cool-down here.
+        text = "2k warm-up, 8 x 500m, 2 minutes rest and 1k easy"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    # --- pm5-7bk.3 review, gap 2: dedup a repeated SET only across a
+    # NEWLINE (title vs. description restatement); across 'then', a
+    # comma, ';', or 'followed by', an identical SET is a genuine
+    # repeat and must produce its own legs. ---
+
+    def test_session_identical_sets_across_then_not_deduped(self):
+        text = "5 min warm-up, 4 x 500m / 1 min rest, then 4 x 500m / 1 min rest, 5 min cool-down"
+        s = spec.parse_spec(text, "All Machines")
+        self.assertEqual(s["kind"], "intervals_variable")
+        expected = (
+            [{"work": {"time_s": 300}, "rest_s": 60}]
+            + [{"work": {"distance_m": 500}, "rest_s": 60}] * 8
+            + [{"work": {"time_s": 300}, "rest_s": 0}]
+        )
+        self.assertEqual(s["intervals"], expected)
+        self.assertEqual(len(s["intervals"]), 10)
+
+    def test_session_identical_sets_across_newline_deduped(self):
+        # Title and description restate the exact same SET, joined by
+        # the "\n" this codebase always uses between them -- deduped,
+        # leaving only one SET (no warm-up/cool-down/2nd SET), so
+        # _match_session declines and the plain fixed-interval matcher
+        # pipeline handles it directly.
+        text = "8 x 500m / 1 min rest\n8 x 500m / 1 min rest"
+        s = spec.parse_spec(text, "All Machines")
+        self.assertEqual(s["kind"], "intervals_distance")
+        self.assertEqual(s["work"], {"distance_m": 500})
+        self.assertEqual(s["rest_s"], 60)
+        self.assertEqual(s["count"], 8)
+
+
 class ParseSpecNegativeTest(unittest.TestCase):
     def test_triple_tabata_unparsed(self):
         text = (
@@ -604,17 +731,6 @@ class ParseSpecNegativeTest(unittest.TestCase):
 
     def test_five_x_500m_still_unparsed(self):
         self.assertIsNone(spec.parse_spec("5 x 500m", "All Machines"))
-
-    def test_warmup_fixed_intervals_cooldown_unparsed(self):
-        # pm5-7bk.2 bug: a fixed intervals_time match ("10 x 1 min hard
-        # / 1 min light") must not silently drop the warm-up/cool-down
-        # legs bracketing it.
-        text = "7 min warm-up, 10 x 1 min hard / 1 min light, 3 min cool-down"
-        self.assertIsNone(spec.parse_spec(text, "All Machines"))
-
-    def test_warmup_then_intervals_then_cooldown_unparsed(self):
-        text = "warm up 7 minutes, then 10 x 1:00 on / 1:00 off, then 3 minutes cool down"
-        self.assertIsNone(spec.parse_spec(text, "All Machines"))
 
     def test_variable_chain_rest_leg_without_cue_unparsed(self):
         # '500m, 2 minutes, 500m' -- the middle (rest-position) leg has
