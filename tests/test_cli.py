@@ -367,9 +367,7 @@ class MonitorFlagCliTest(unittest.TestCase):
         text = self._variable_chain_text(51)
         code, out, err = self._run_main([text, "--no-llm"])
         self.assertEqual(code, 2)
-        self.assertEqual(
-            err.strip(), "variable intervals: 51 legs exceeds the PM5 limit of 50"
-        )
+        self.assertEqual(err.strip(), "variable intervals: 51 legs exceeds the PM5 limit of 50")
         self.assertNotIn("Traceback", err)
         self.assertEqual(out, "")
 
@@ -484,9 +482,7 @@ class SummaryFlagCliTest(unittest.TestCase):
         )
 
     def test_summary_and_explain_compose_table_then_key_line_then_explain(self):
-        code, out, err = self._run_main(
-            [self.SESSION_TEXT, "--no-llm", "--summary", "--explain"]
-        )
+        code, out, err = self._run_main([self.SESSION_TEXT, "--no-llm", "--summary", "--explain"])
         self.assertEqual(code, 0)
         lines = out.splitlines()
         table_end = lines.index("")

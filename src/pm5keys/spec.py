@@ -750,9 +750,7 @@ _REST_CUE_ALT = r"(?:rest|easy|light|off|recovery|paddle)"
 _WORK_QUALIFIER_SUFFIX_RE = re.compile(
     r"^(?P<unit>.*?)\s+\b" + _WORK_QUALIFIER_ALT + r"\b\.?$", re.IGNORECASE
 )
-_REST_CUE_SUFFIX_RE = re.compile(
-    r"^(?P<dur>.*?)\s+\b" + _REST_CUE_ALT + r"\b\.?$", re.IGNORECASE
-)
+_REST_CUE_SUFFIX_RE = re.compile(r"^(?P<dur>.*?)\s+\b" + _REST_CUE_ALT + r"\b\.?$", re.IGNORECASE)
 _REST_DURATION_RE = re.compile(
     r"^\s*(?:(\d{1,3}):(\d{2})|:(\d{1,2})|("
     + _NUM_RE
@@ -836,9 +834,18 @@ _CHAIN_UNIT_ALT = (
     r"(?:\d{1,3}:\d{2}"  # mm:ss
     r"|:\d{1,2}"  # bare :ss
     r"|[\d,]+(?:\.\d+)?\s*(?:k\b|m\b|meters?\b|meter\b)"  # distance
-    + r"|" + _NUM_RE + r"\s*" + _MIN_UNIT  # N minutes
-    + r"|" + _NUM_RE + r"\s*" + _SEC_UNIT  # N seconds
-    + r"|" + _NUM_RE + r"\s*" + _CAL_UNIT  # N calories
+    + r"|"
+    + _NUM_RE
+    + r"\s*"
+    + _MIN_UNIT  # N minutes
+    + r"|"
+    + _NUM_RE
+    + r"\s*"
+    + _SEC_UNIT  # N seconds
+    + r"|"
+    + _NUM_RE
+    + r"\s*"
+    + _CAL_UNIT  # N calories
     + r")"
 )
 _CHAIN_TRAILER_ALT = (
@@ -954,19 +961,11 @@ _CHAIN_LEG_RE_STR = _CHAIN_UNIT_ALT + r"(?:\s+" + _CHAIN_TRAILER_ALT + r")?"
 # one physical line as a single match, and the checks above still run
 # against whatever text is left outside that (possibly multi-line) match.
 _COMMA_CHAIN_CANDIDATE_RE = re.compile(
-    r"^[ \t]*"
-    + _CHAIN_LEG_RE_STR
-    + r"(?:\s*,\s*"
-    + _CHAIN_LEG_RE_STR
-    + r"){2,}[ \t]*\.?[ \t]*$",
+    r"^[ \t]*" + _CHAIN_LEG_RE_STR + r"(?:\s*,\s*" + _CHAIN_LEG_RE_STR + r"){2,}[ \t]*\.?[ \t]*$",
     re.IGNORECASE | re.MULTILINE,
 )
 _SLASH_CHAIN_CANDIDATE_RE = re.compile(
-    r"^[ \t]*"
-    + _CHAIN_LEG_RE_STR
-    + r"(?:\s*/\s*"
-    + _CHAIN_LEG_RE_STR
-    + r"){2,}[ \t]*\.?[ \t]*$",
+    r"^[ \t]*" + _CHAIN_LEG_RE_STR + r"(?:\s*/\s*" + _CHAIN_LEG_RE_STR + r"){2,}[ \t]*\.?[ \t]*$",
     re.IGNORECASE | re.MULTILINE,
 )
 
@@ -1151,9 +1150,7 @@ def _match_variable_chain(text: str):
         if _REPEAT_CUE_RE.search(rest_of_text):
             continue
         first_work = _first_work_mention(rest_of_text)
-        if first_work is not None and not _LEAD_IN_OK_RE.search(
-            rest_of_text[: first_work.start()]
-        ):
+        if first_work is not None and not _LEAD_IN_OK_RE.search(rest_of_text[: first_work.start()]):
             continue
         if not _is_in_order_subsequence(
             _outside_mention_tokens(rest_of_text), _chain_token_sequence(result)

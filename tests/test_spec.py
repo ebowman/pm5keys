@@ -735,10 +735,7 @@ class ParseSpecNegativeTest(unittest.TestCase):
     def test_variable_chain_rest_leg_without_cue_unparsed(self):
         # '500m, 2 minutes, 500m' -- the middle (rest-position) leg has
         # no rest cue, so the whole chain must fail rather than guess.
-        text = (
-            "500m, 2 minutes, 500m\n"
-            "A 500m interval, then 2 minutes, then another 500m."
-        )
+        text = "500m, 2 minutes, 500m\nA 500m interval, then 2 minutes, then another 500m."
         self.assertIsNone(spec.parse_spec(text, "All Machines"))
 
     def test_variable_chain_work_leg_says_rest_unparsed(self):
@@ -972,8 +969,7 @@ class ParseSpecNegativeTest(unittest.TestCase):
         # words don't matter -- only what's directly adjacent to the
         # first WORK mention counts, and here that's a bare 'a'.
         text = (
-            "3000m, 3 minutes rest, 10 minutes work\n"
-            "Then 3 minutes rest before a 10 minute piece"
+            "3000m, 3 minutes rest, 10 minutes work\nThen 3 minutes rest before a 10 minute piece"
         )
         s = spec.parse_spec(text, "All Machines")
         self.assertEqual(s["kind"], "intervals_variable")
