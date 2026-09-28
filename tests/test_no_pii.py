@@ -2,7 +2,7 @@
 
 """Guards against personal identifiers / PII leaking into the tree.
 
-Walks the repository (excluding .git, .venv, raw, build, dist, and any
+Walks the repository (excluding .git, .venv, .beads, raw, build, dist, and any
 *.egg-info directory) and fails if any file contains, case-insensitively:
   - 'boboco'
   - '/Users/' (a local filesystem path)
@@ -33,7 +33,7 @@ TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(TESTS_DIR)
 LOCAL_PATTERNS_FILE = os.path.join(REPO_ROOT, ".pii-patterns.local")
 
-EXCLUDED_DIRS = {".git", ".venv", "raw", "build", "dist"}
+EXCLUDED_DIRS = {".git", ".venv", ".beads", "raw", "build", "dist"}
 
 
 def _is_excluded_dir(name):
