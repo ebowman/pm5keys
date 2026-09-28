@@ -71,3 +71,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   step, no framework, no LLM in the browser. `web/build_examples.py`
   generates the example-chip titles (`web/examples.js`) from the top
   RowErg/All-Machines rows in `data/dataset_unique.jsonl`.
+- Generalized the variable-rest chain matcher (`pm5keys.spec`) to
+  accept any work unit (distance, time, or calories) in any leg,
+  comma- or slash-separated (never mixed within one chain), with
+  optional qualifiers on work legs (`work`/`hard`/`easy`/`light`/
+  `steady`/`on`/`warm-up`/`cool-down`/`row`) and a required rest cue on
+  rest legs (`rest`/`easy`/`light`/`off`/`recovery`/`paddle`); the
+  chain must be a whole line, and text outside it is accepted only as
+  an in-order prose restatement of the same legs.
+- Extended the never-guess leftover-cue guard to fixed intervals
+  (`warm-up`/`cool-down`/`then` remnants) and to `intervals_variable`
+  results (`warm-up`/`cool-down` remnants), so text describing an
+  untracked extra leg is left unparsed instead of silently dropped.
+- Added a session matcher: `[warm-up], N x WORK / REST (, N x WORK /
+  REST)*, [cool-down]` folds a warm-up, one or more work/rest sets, and
+  a cool-down into a single `intervals_variable` workout. Segments
+  split on commas, newlines, `;`, `then`, `and then`, and `followed
+  by`; an identical set restated across a newline (title vs.
+  description) is deduplicated, while the same restated across a
+  comma/`then`/`followed by` is a genuine repeat — so multi-set text
+  like `4 x 500m / 1 min rest, then 4 x 250m / 30 sec rest`, which
+  previously silently parsed as only the first set, now parses as one
+  12-leg variable workout.
+- Enforced the PM5 (and PM3/PM4) 50-leg Variable Intervals hard limit:
+  compiling an `intervals_variable` spec with more than 50 legs now
+  exits 2 with `variable intervals: <n> legs exceeds the PM5 limit of
+  50` instead of silently producing an unplayable sequence.
+  Concept2 does not document a PM3-specific figure; PM3/PM4 is assumed
+  to share the PM5 limit.
+- Added `--summary`, a plain-text leg table printed before the
+  key-sequence line(s) (one row per leg for `intervals_variable`
+  workouts, collapsing consecutive identical legs into a range row),
+  and taught `--explain` to collapse runs of consecutive legs that
+  program identically into a single `<n>x ...` summary line.

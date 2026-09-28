@@ -163,6 +163,35 @@ class CompileErrorPathsTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             ck.compile(spec)
 
+    def _variable_spec(self, n_legs):
+        intervals = []
+        for i in range(n_legs):
+            rest_s = 0 if i == n_legs - 1 else 60
+            intervals.append({"work": {"time_s": 60}, "rest_s": rest_s})
+        return {"kind": "intervals_variable", "intervals": intervals, "notes": ""}
+
+    def test_variable_50_legs_compiles(self):
+        spec = self._variable_spec(50)
+        seq = ck.compile(spec)  # should not raise
+        result = pm5.run(seq)
+        self.assertEqual(len(result["intervals"]), 50)
+
+    def test_variable_51_legs_raises_pm5_limit(self):
+        spec = self._variable_spec(51)
+        with self.assertRaises(ValueError) as ctx:
+            ck.compile(spec)
+        self.assertEqual(
+            str(ctx.exception), "variable intervals: 51 legs exceeds the PM5 limit of 50"
+        )
+
+    def test_variable_51_legs_raises_pm3_limit(self):
+        spec = self._variable_spec(51)
+        with self.assertRaises(ValueError) as ctx:
+            ck.compile(spec, monitor="pm3")
+        self.assertEqual(
+            str(ctx.exception), "variable intervals: 51 legs exceeds the PM3/PM4 limit of 50"
+        )
+
     def test_variable_last_interval_rest_ignored(self):
         # The last interval's rest_s is never compiled/emitted -- confirm
         # compile() does not raise even when it's an out-of-range value,

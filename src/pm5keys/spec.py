@@ -731,36 +731,96 @@ def _match_equal_work_and_rest(text: str):
 
 
 # --- Variable rest sequences: "2000m/3 minutes rest/1000m/2 minutes
-# rest/500m", "3000m, 3 minutes rest, 10 minutes work" -----------------------
+# rest/500m", "3000m, 3 minutes rest, 10 minutes work", and arbitrarily
+# long comma- or slash-separated chains of the same shape -------------------
 
 _SEGMENT_SPLIT_RE = re.compile(r"\s*/\s*")
+_COMMA_SEGMENT_SPLIT_RE = re.compile(r"\s*,\s*")
+
+# Optional trailing qualifier on a WORK leg -- never changes what the leg
+# means, just confirms it (position decides work vs rest).
+_WORK_QUALIFIER_ALT = (
+    r"(?:warm-up|warm up|warmup|cool-down|cool down|cooldown"
+    r"|work|hard|easy|light|steady|on|row)"
+)
+# Required cue on a REST leg -- a rest-position leg without one of these
+# fails the whole chain rather than being guessed at.
+_REST_CUE_ALT = r"(?:rest|easy|light|off|recovery|paddle)"
+
+_WORK_QUALIFIER_SUFFIX_RE = re.compile(
+    r"^(?P<unit>.*?)\s+\b" + _WORK_QUALIFIER_ALT + r"\b\.?$", re.IGNORECASE
+)
+_REST_CUE_SUFFIX_RE = re.compile(
+    r"^(?P<dur>.*?)\s+\b" + _REST_CUE_ALT + r"\b\.?$", re.IGNORECASE
+)
+_REST_DURATION_RE = re.compile(
+    r"^\s*(?:(\d{1,3}):(\d{2})|:(\d{1,2})|("
+    + _NUM_RE
+    + r")\s*("
+    + _MIN_UNIT
+    + r"|"
+    + _SEC_UNIT
+    + r"))\s*$",
+    re.IGNORECASE,
+)
+
+
+def _parse_variable_work_leg(seg: str):
+    """Parse a WORK-position leg: any _parse_work_chunk unit, optionally
+    followed by a qualifier word/phrase. A leg that isn't a recognised
+    unit (once an optional qualifier is stripped) -- including one that
+    says rest/off/recovery, none of which are valid qualifiers -- fails."""
+    seg = seg.strip()
+    if not seg:
+        return None
+    m = _WORK_QUALIFIER_SUFFIX_RE.match(seg)
+    if m:
+        unit_text = m.group("unit")
+    else:
+        unit_text = seg[:-1].rstrip() if seg.endswith(".") else seg
+    return _parse_work_chunk(unit_text)
+
+
+def _parse_variable_rest_leg(seg: str):
+    """Parse a REST-position leg: a duration (N min/sec, M:SS, or bare
+    :SS) followed by a REQUIRED rest cue. Missing the cue fails the leg
+    (and so the whole chain) rather than guessing."""
+    seg = seg.strip()
+    if not seg:
+        return None
+    m = _REST_CUE_SUFFIX_RE.match(seg)
+    if not m:
+        return None
+    dm = _REST_DURATION_RE.match(m.group("dur"))
+    if not dm:
+        return None
+    if dm.group(1) is not None:
+        return _mmss_to_seconds(dm.group(1), dm.group(2))
+    if dm.group(3) is not None:
+        return _to_int(dm.group(3))
+    return _duration_words_to_seconds(dm.group(4), dm.group(5))
 
 
 def _try_parse_variable_chain(segments):
     """segments: list of strings alternating work/rest, where rest
-    segments end in 'rest' (or similar). Build intervals_variable if it
+    segments carry a required rest cue. Build intervals_variable if it
     strictly alternates work, rest, work, rest, ..., work (odd length,
-    starting and ending with work)."""
+    >= 3 items, starting and ending with work)."""
     if len(segments) < 3 or len(segments) % 2 == 0:
         return None
     works = []
     rests = []
     for i, seg in enumerate(segments):
-        seg = seg.strip()
         if i % 2 == 0:
-            w = _parse_work_chunk(seg)
+            w = _parse_variable_work_leg(seg)
             if w is None:
                 return None
             works.append(w)
         else:
-            m = re.match(
-                r"^(" + _NUM_RE + r")\s*(" + _MIN_UNIT + r"|" + _SEC_UNIT + r")\s*rest\.?$",
-                seg,
-                re.IGNORECASE,
-            )
-            if not m:
+            r = _parse_variable_rest_leg(seg)
+            if r is None:
                 return None
-            rests.append(_duration_words_to_seconds(m.group(1), m.group(2)))
+            rests.append(r)
     intervals = []
     for i, w in enumerate(works):
         r = rests[i] if i < len(rests) else 0
@@ -768,51 +828,339 @@ def _try_parse_variable_chain(segments):
     return _finalize(None, None, intervals=intervals)
 
 
-_DIST_SEGMENT = r"[\d,]+(?:\.\d+)?\s*(?:k\b|m\b|meters?\b|meter\b)"
-_REST_SEGMENT = r"" + _NUM_RE + r"\s*(?:" + _MIN_UNIT + r"|" + _SEC_UNIT + r")\s*rest\.?"
+# Permissive leg shape used only to find candidate chain spans in the
+# text: any work unit, optionally followed by a single qualifier-or-cue
+# word/phrase (the position-aware, strict checks above decide whether
+# each leg is actually valid once the chain is split).
+_CHAIN_UNIT_ALT = (
+    r"(?:\d{1,3}:\d{2}"  # mm:ss
+    r"|:\d{1,2}"  # bare :ss
+    r"|[\d,]+(?:\.\d+)?\s*(?:k\b|m\b|meters?\b|meter\b)"  # distance
+    + r"|" + _NUM_RE + r"\s*" + _MIN_UNIT  # N minutes
+    + r"|" + _NUM_RE + r"\s*" + _SEC_UNIT  # N seconds
+    + r"|" + _NUM_RE + r"\s*" + _CAL_UNIT  # N calories
+    + r")"
+)
+_CHAIN_TRAILER_ALT = (
+    r"\b(?:warm-up|warm up|warmup|cool-down|cool down|cooldown"
+    r"|work|hard|easy|light|steady|on|row"
+    r"|rest|off|recovery|paddle)\b"
+)
+_CHAIN_LEG_RE_STR = _CHAIN_UNIT_ALT + r"(?:\s+" + _CHAIN_TRAILER_ALT + r")?"
 
+# Full-text consumption, not just "fills a line": parse_spec hands every
+# matcher title + "\n" + description as one string, and title/description
+# routinely restate each other (title: the bare chain; description: the
+# same chain retold in prose, e.g. "3000m, 3 minutes rest, 10 minutes
+# work" / "A 3000m work interval, followed by 3 minutes rest. Then a 10
+# minute work interval.") -- every other matcher in this module tolerates
+# that restatement by matching only the defining fragment and trusting
+# _leftover_cue_guard, not by demanding the whole raw text be nothing but
+# the match. A literal whole-string fullmatch was tried here first and
+# rejects that convention outright (it fails all of the pre-existing
+# restatement-style tests, which have narrative descriptions the chain
+# pattern itself can never match), so it is not what "full text
+# consumption" means for this matcher.
+#
+# What full consumption DOES need to rule out (the actual bug): a chain
+# that only fills ONE LINE while a SIBLING line carries real, distinct
+# workout content that was silently dropped -- a leading "3 x" line that
+# turns the chain into an outer-repeat count instead, a trailing "then
+# 4 x 250m" cool-down/extra block, a bare "then 2000m" leftover leg. The
+# fix below keeps the existing per-line anchor (^...$, MULTILINE -- it
+# already correctly rejects same-line leading/trailing junk such as
+# "then do 500m, 1 minute rest, 500m" or "... and then some") and adds
+# THREE checks:
+#
+#   (a) REPEAT CUE, anywhere outside the matched span: "N x"/"N X"/"N×",
+#       "N rounds"/"N sets"/"N times" (N a digit or number-word),
+#       "twice", "thrice", "repeat", "rounds of", "sets of". Always
+#       rejects, regardless of what N is or whether it matches a chain
+#       value -- it means the chain is (or may be) the body of an
+#       outer-repeat construct that belongs to a different matcher, or
+#       an explicit "do the whole thing again" cue, neither of which
+#       this matcher may guess at. This is what makes "3 x\n500m, 1
+#       minute rest, 500m", "...\nThen 4 x 250m", "...\n5 rounds",
+#       "...\nDo it twice" and "Row 2 rounds\n..." fall through/reject.
+#   (b) AMBIGUOUS DUPLICATE CANDIDATE: if this separator kind (comma or
+#       slash) finds MORE THAN ONE independent full-line chain candidate
+#       anywhere in the text, refuse all of them for that kind rather
+#       than picking one. Two identical chain lines back to back ("500m,
+#       1 minute rest, 500m" twice) are exactly as consistent with "the
+#       same workout, restated" as with "do it twice" -- an outer-repeat
+#       meaning this spec has no way to express -- so guessing either
+#       reading would be guessing at something we cannot tell apart.
+#       Genuine prose restatement is never itself comma/slash-chain
+#       shaped, so it never trips this.
+#   (c) RESTATEMENT-SHAPE WHITELIST (not a cue-word blacklist -- an
+#       open-ended list of "bad" lead-in words is whack-a-mole; this
+#       checks the SHAPE a genuine restatement always has instead).
+#       Text outside the span is acceptable only if BOTH hold:
+#
+#       1. LEAD-IN on the first outside WORK mention: find the first
+#          unit-bearing token outside the span that is not unambiguously
+#          a rest mention (a rest-only cue -- rest/off/recovery/paddle,
+#          and not also a work qualifier -- makes a token a rest mention
+#          and it is skipped when hunting for this "first" one; see
+#          _is_rest_mention/_first_work_mention). Whatever comes right
+#          before that first WORK mention, up to the nearest sentence
+#          boundary (start of text, after "\n", or after one of ".!?:;")
+#          or all the way back to the start of the text if there is no
+#          boundary, must be EITHER just whitespace/punctuation, OR end
+#          in exactly one bare article word ("a"/"an"/"the") -- what
+#          comes before that article does not matter, since a genuine
+#          restatement's own earlier content (an already-matched rest
+#          mention, "A 2000m interval, followed by three minutes rest.
+#          Then a 10 minute work interval." -- the "Then a" before this
+#          SECOND leg) is exactly as legitimate as no lead-in at all.
+#          Any OTHER word directly before the first work mention (then,
+#          next, plus, and, another, afterwards, finish, or literally
+#          anything that isn't nothing/punctuation/a single article)
+#          rejects -- this is what makes "Finish with 500m", "then 1k",
+#          "then 2000m cool down", "then 10 minutes easy", "Then, 500m",
+#          "Next - 500m", "Then another 500m", "Afterwards 500m", "Plus
+#          500m", "and another 500m" and "Then 1 minute rest and 500m
+#          more" all reject, while "...followed by 3 minutes rest
+#          before a 10 minute piece" (rest mention cued, first WORK
+#          mention preceded only by "a") accepts.
+#       2. IN-ORDER SUBSEQUENCE: the chain's own work/rest legs form a
+#          token sequence (work1, rest1, work2, rest2, ..., workN;
+#          rest_i omitted where 0) of (kind, value) pairs -- kind is
+#          "distance" (m/k/km/meters/metres), "time" (min/sec/s/M:SS/
+#          :SS, normalised to seconds) or "cal", matched purely on
+#          (kind, value), no role. Every unit-bearing token outside the
+#          span, in text order (work and rest mentions both -- digits or
+#          number-words all count, since _NUM_RE/_to_int already
+#          normalise them; a bare number with no unit, "Day 2", "Week
+#          3", is never unit-bearing and is ignored), must match some
+#          chain-sequence token AFTER the one the previous outside token
+#          matched (each chain token usable at most once, greedy
+#          leftmost assignment). Any outside mention that cannot be
+#          matched to a later, unconsumed chain token rejects -- this is
+#          what makes a description that mentions a value more times, or
+#          out of order, than the chain itself does reject, while 1-for-1
+#          in-order restatement -- including a stray unit-less "Day 2 of
+#          the challenge" -- always has room and is accepted.
+#
+# Newline-in-separator decision: the inter-leg separators ("\s*,\s*" /
+# "\s*/\s*") and the optional qualifier's leading "\s+" all use \s, which
+# already matches "\n". That is left as-is on purpose: a single logical
+# chain that merely word-wraps mid-list onto the next physical line
+# (e.g. a title stored as "500m, 1 minute\nrest, 500m") should still
+# parse as one chain. This is safe together with the per-line anchor
+# above because Python's re "^"/"$" in MULTILINE mode anchor to the
+# start/end of the whole subject too when a candidate's internal "\s"
+# happens to swallow a "\n" -- the candidate then simply spans more than
+# one physical line as a single match, and the checks above still run
+# against whatever text is left outside that (possibly multi-line) match.
+_COMMA_CHAIN_CANDIDATE_RE = re.compile(
+    r"^[ \t]*"
+    + _CHAIN_LEG_RE_STR
+    + r"(?:\s*,\s*"
+    + _CHAIN_LEG_RE_STR
+    + r"){2,}[ \t]*\.?[ \t]*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+_SLASH_CHAIN_CANDIDATE_RE = re.compile(
+    r"^[ \t]*"
+    + _CHAIN_LEG_RE_STR
+    + r"(?:\s*/\s*"
+    + _CHAIN_LEG_RE_STR
+    + r"){2,}[ \t]*\.?[ \t]*$",
+    re.IGNORECASE | re.MULTILINE,
+)
 
-def _match_slash_variable_rest_chain(text: str):
-    # Look for a slash-separated run alternating distance segments with
-    # "N minutes/seconds rest" segments, e.g. "2000m/3 minutes
-    # rest/1000m/2 minutes rest/500m": distance, (rest, distance)*.
-    for candidate in re.finditer(
-        r"(?:" + _DIST_SEGMENT + r")"
-        r"(?:\s*/\s*(?:" + _REST_SEGMENT + r"|" + _DIST_SEGMENT + r"))+",
-        text,
-        re.IGNORECASE,
-    ):
-        segs = _SEGMENT_SPLIT_RE.split(candidate.group(0))
-        result = _try_parse_variable_chain(segs)
-        if result is not None:
-            return result
-    return None
-
-
-# "3000m, 3 minutes rest, 10 minutes work" (comma separated, explicit
-# 'work' suffix on later durations).
-_COMMA_VARIABLE_CHAIN_RE = re.compile(
-    r"([\d,]+(?:\.\d+)?\s*(?:k\b|m\b|meters?\b|meter\b))\s*,\s*"
-    r"(" + _NUM_RE + r")\s*(" + _MIN_UNIT + r")\s*rest\s*,\s*"
-    r"(" + _NUM_RE + r")\s*(" + _MIN_UNIT + r")\s*work",
+# (a) Repeat cues: "N x"/"N X"/"N×", "N rounds"/"N sets"/"N times", or a
+# bare "twice"/"thrice"/"repeat"/"rounds of"/"sets of".
+_REPEAT_CUE_RE = re.compile(
+    r"\b(?:"
+    + _NUM_RE
+    + r"\s*[xX×]\b"
+    + r"|"
+    + _NUM_RE
+    + r"\s*rounds?\b"
+    + r"|"
+    + _NUM_RE
+    + r"\s*sets?\b"
+    + r"|"
+    + _NUM_RE
+    + r"\s*times\b"
+    + r"|twice\b"
+    + r"|thrice\b"
+    + r"|repeat\b"
+    + r"|rounds?\s+of\b"
+    + r"|sets?\s+of\b"
+    + r")",
     re.IGNORECASE,
 )
 
+# (c) A number+UNIT token: digits or a number-word immediately followed
+# by a recognised unit, or an M:SS / :SS time. Mirrors the unit
+# alternations used elsewhere in this module (_MIN_UNIT/_SEC_UNIT/
+# _CAL_UNIT/distance units) so "unit-bearing" means exactly what the
+# work/rest leg parsers themselves accept.
+_UNIT_BEARING_RE = re.compile(
+    r"\b(?P<num>"
+    + _NUM_RE
+    + r"(?:\.\d+)?)\s*(?P<unit>k\b|km\b|m\b|meters?\b|metres?\b|"
+    + _MIN_UNIT
+    + r"\b|"
+    + _SEC_UNIT
+    + r"\b|"
+    + _CAL_UNIT
+    + r"\b)"
+    r"|(?P<mmss>\d{1,3}:\d{2})\b"
+    r"|(?P<bare_ss>:\d{1,2})\b",
+    re.IGNORECASE,
+)
 
-def _match_comma_variable_chain(text: str):
-    m = _COMMA_VARIABLE_CHAIN_RE.search(text)
-    if not m:
-        return None
-    w1 = _parse_work_chunk(m.group(1))
-    if w1 is None:
-        return None
-    r1 = _duration_words_to_seconds(m.group(2), m.group(3))
-    w2_s = _to_int(m.group(4)) * 60
-    intervals = [
-        {"work": w1, "rest_s": r1},
-        {"work": {"time_s": w2_s}, "rest_s": 0},
-    ]
-    return _finalize(None, None, intervals=intervals)
+# A qualifier word immediately following a unit-bearing token, used only
+# to read off whether that token is unambiguously a rest mention (check
+# (c).1's "skip rest mentions"). "easy"/"light" appear in both lists on
+# purpose -- they are genuinely ambiguous elsewhere in this module too.
+_TRAILING_REST_ROLE_RE = re.compile(r"^\s*" + _REST_CUE_ALT + r"\b", re.IGNORECASE)
+_TRAILING_WORK_ROLE_RE = re.compile(r"^\s*" + _WORK_QUALIFIER_ALT + r"\b", re.IGNORECASE)
+
+# Check (c).1's lead-in test: the text immediately before the first
+# outside WORK mention is acceptable if it is (via re.search, so this
+# matches regardless of what -- if anything -- comes further back)
+# either the very start of the text, a sentence-boundary punctuation
+# mark, or a single bare article word, followed only by whitespace up
+# to the mention. This is a whitelist, not a blacklist: everything not
+# matching this shape rejects, so no cue word needs to be named.
+_LEAD_IN_OK_RE = re.compile(r"(?:\A|[\n.!?:;]|\b(?:a|an|the)\b)\s*\Z", re.IGNORECASE)
+
+
+def _unit_kind_value(unit: str, num: str) -> tuple:
+    """(kind, value) for a matched _UNIT_BEARING_RE 'num'+'unit' pair,
+    with time/distance normalised (minutes/k/km -> seconds/metres)."""
+    unit_l = unit.lower()
+    n = _to_int(num)
+    if unit_l in ("k", "km"):
+        return ("distance", int(round(n * 1000)))
+    if unit_l == "m" or unit_l.startswith("meter") or unit_l.startswith("metre"):
+        return ("distance", n)
+    if unit_l.startswith("min"):
+        return ("time", n * 60)
+    if unit_l.startswith("sec") or unit_l == "s":
+        return ("time", n)
+    return ("cal", n)
+
+
+def _is_rest_mention(kind: str, trailer: str) -> bool:
+    """True only if a unit-bearing token is UNAMBIGUOUSLY a rest mention
+    (a rest-only cue follows and no work qualifier also does) -- used to
+    skip rest mentions when hunting for the first WORK mention outside
+    the span (check (d))."""
+    if kind != "time":
+        return False
+    is_rest = bool(_TRAILING_REST_ROLE_RE.match(trailer))
+    is_work = bool(_TRAILING_WORK_ROLE_RE.match(trailer))
+    return is_rest and not is_work
+
+
+def _first_work_mention(rest_of_text: str):
+    """The first _UNIT_BEARING_RE match in rest_of_text that is not
+    unambiguously a rest mention, or None (see check (d))."""
+    for m in _UNIT_BEARING_RE.finditer(rest_of_text):
+        if m.group("num") is not None:
+            kind, _value = _unit_kind_value(m.group("unit"), m.group("num"))
+        else:
+            kind = "time"  # mm:ss / bare :ss are always time
+        if _is_rest_mention(kind, rest_of_text[m.end() :]):
+            continue
+        return m
+    return None
+
+
+def _chain_token_sequence(result: dict) -> list:
+    """(kind, value) for every leg of an already-built intervals_variable
+    result, in order: work1, rest1, work2, rest2, ..., workN (a leg's
+    rest is omitted when 0, i.e. always for the last leg) -- see check
+    (c).2 above."""
+    seq = []
+    for iv in result["intervals"]:
+        work = iv["work"]
+        if "distance_m" in work:
+            seq.append(("distance", work["distance_m"]))
+        elif "time_s" in work:
+            seq.append(("time", work["time_s"]))
+        else:
+            seq.append(("cal", work["calories"]))
+        if iv["rest_s"]:
+            seq.append(("time", iv["rest_s"]))
+    return seq
+
+
+def _outside_mention_tokens(rest_of_text: str) -> list:
+    """(kind, value) for every unit-bearing token in rest_of_text, in
+    text order -- see check (c).2 above."""
+    tokens = []
+    for m in _UNIT_BEARING_RE.finditer(rest_of_text):
+        if m.group("num") is not None:
+            tokens.append(_unit_kind_value(m.group("unit"), m.group("num")))
+        elif m.group("mmss") is not None:
+            mm, ss = m.group("mmss").split(":")
+            tokens.append(("time", int(mm) * 60 + int(ss)))
+        else:
+            tokens.append(("time", int(m.group("bare_ss").lstrip(":"))))
+    return tokens
+
+
+def _is_in_order_subsequence(mentions: list, chain_seq: list) -> bool:
+    """True iff mentions is an in-order subsequence of chain_seq, each
+    chain_seq token usable at most once (greedy leftmost assignment --
+    see check (c).2 above)."""
+    pointer = 0
+    for tok in mentions:
+        for j in range(pointer, len(chain_seq)):
+            if chain_seq[j] == tok:
+                pointer = j + 1
+                break
+        else:
+            return False
+    return True
+
+
+def _match_variable_chain(text: str):
+    """One separator kind per chain (comma or slash, never mixed):
+    split a candidate run into an odd-length alternating work, rest,
+    work, ... list. Full consumption of the input text is enforced by
+    the checks in the comment above this matcher's regexes: a repeat
+    cue outside the span, more than one independent chain candidate of
+    the same kind, or text outside the span that doesn't have the
+    restatement shape (a bad lead-in on the first WORK mention, or
+    mentions that aren't an in-order subsequence of the chain's own
+    tokens), all reject. No leg-count cap."""
+    for candidate_re, split_re in (
+        (_COMMA_CHAIN_CANDIDATE_RE, _COMMA_SEGMENT_SPLIT_RE),
+        (_SLASH_CHAIN_CANDIDATE_RE, _SEGMENT_SPLIT_RE),
+    ):
+        matches = list(candidate_re.finditer(text))
+        if len(matches) != 1:
+            continue
+        candidate = matches[0]
+        candidate_text = candidate.group(0).strip()
+        if candidate_text.endswith("."):
+            candidate_text = candidate_text[:-1].rstrip()
+        segs = split_re.split(candidate_text)
+        result = _try_parse_variable_chain(segs)
+        if result is None:
+            continue
+        rest_of_text = text[: candidate.start()] + text[candidate.end() :]
+        if _REPEAT_CUE_RE.search(rest_of_text):
+            continue
+        first_work = _first_work_mention(rest_of_text)
+        if first_work is not None and not _LEAD_IN_OK_RE.search(
+            rest_of_text[: first_work.start()]
+        ):
+            continue
+        if not _is_in_order_subsequence(
+            _outside_mention_tokens(rest_of_text), _chain_token_sequence(result)
+        ):
+            continue
+        return result
+    return None
 
 
 # --- Minute pyramids without slashes: "1 min, 2 min, 3 min, 4 min, 3
@@ -896,6 +1244,361 @@ def _match_single(text: str):
 
 
 # ---------------------------------------------------------------------------
+# Session: [WARMUP] SET (SEP SET)* [COOLDOWN] -> one intervals_variable
+# spec, e.g. "7 min warm-up, 10 x 1 min hard / 1 min light, 3 min
+# cool-down". See docs/SPEC.md / bead pm5-7bk.3 for the grammar:
+#
+#   SESSION := [WARMUP SEP] SET (SEP SET)* [SEP COOLDOWN]
+#   WARMUP  := WORK_UNIT (warm-up|warm up|warmup|easy|light)
+#            | (warm up|warm-up|warmup) WORK_UNIT
+#   COOLDOWN:= WORK_UNIT (cool-down|cool down|cooldown|easy|light)
+#            | (cool down|cool-down|cooldown) WORK_UNIT
+#   SET     := any text the existing FIXED interval matchers already
+#              parse on their own (see _match_fixed_set below)
+#   WORK_UNIT := what _parse_work_chunk accepts (distance/time/calories)
+# ---------------------------------------------------------------------------
+
+# Segment separators: comma, ';', newline, or a 'then'/'and then'/
+# 'followed by' cue. Each split point is tagged 'comma', 'newline', or
+# 'hard' (';'/'then'/'and then'/'followed by'):
+#   - a SET can be greedily grown across a COMMA boundary only (a
+#     fixed-interval phrase's own rest clause, e.g. "8 x 500m, 2 minutes
+#     rest", is comma-separated from its count -- see _match_session
+#     below) and never across a 'newline'/'hard' boundary, which always
+#     marks a WARMUP/SET/COOLDOWN block boundary and must never be
+#     folded into a SET;
+#   - a 'newline' boundary specifically (title vs. description in this
+#     corpus's title+"\n"+description convention) is the one place an
+#     identical repeated SET is treated as prose restatement rather than
+#     a genuine second block -- see the dedup comment in _match_session.
+_SESSION_SEP_TOKEN_RE = re.compile(
+    r"(?P<comma>,)|(?P<newline>\n)|(?P<hard>;|\band\s+then\b|\bthen\b|\bfollowed\s+by\b)",
+    re.IGNORECASE,
+)
+
+
+def _split_session_segments(text: str):
+    """Split text into (segment_text, preceded_by) pairs, preceded_by in
+    {None, 'comma', 'newline', 'hard'} -- the kind of separator
+    immediately before this segment (None for the first segment). Empty
+    pieces (e.g. the space between a comma and a following 'then') are
+    dropped; when that happens the *next* real separator's tag wins,
+    since ', then' is one hard boundary as a whole, not a comma one
+    followed by a hard one."""
+    segments = []
+    pos = 0
+    preceded_by = None
+    for m in _SESSION_SEP_TOKEN_RE.finditer(text):
+        piece = text[pos : m.start()].strip()
+        if piece:
+            segments.append((piece, preceded_by))
+        if m.group("comma"):
+            preceded_by = "comma"
+        elif m.group("newline"):
+            preceded_by = "newline"
+        else:
+            preceded_by = "hard"
+        pos = m.end()
+    piece = text[pos:].strip()
+    if piece:
+        segments.append((piece, preceded_by))
+    return segments
+
+
+_SESSION_WARMUP_CUE_SUFFIX = r"(?:warm-up|warm up|warmup|easy|light)"
+_SESSION_WARMUP_CUE_PREFIX = r"(?:warm up|warm-up|warmup)"
+_SESSION_COOLDOWN_CUE_SUFFIX = r"(?:cool-down|cool down|cooldown|easy|light)"
+_SESSION_COOLDOWN_CUE_PREFIX = r"(?:cool down|cool-down|cooldown)"
+
+_SESSION_WARMUP_SUFFIX_RE = re.compile(
+    r"^(.*?)\s+" + _SESSION_WARMUP_CUE_SUFFIX + r"\.?$", re.IGNORECASE
+)
+_SESSION_WARMUP_PREFIX_RE = re.compile(
+    r"^" + _SESSION_WARMUP_CUE_PREFIX + r"\s+(.*?)\.?$", re.IGNORECASE
+)
+_SESSION_COOLDOWN_SUFFIX_RE = re.compile(
+    r"^(.*?)\s+" + _SESSION_COOLDOWN_CUE_SUFFIX + r"\.?$", re.IGNORECASE
+)
+_SESSION_COOLDOWN_PREFIX_RE = re.compile(
+    r"^" + _SESSION_COOLDOWN_CUE_PREFIX + r"\s+(.*?)\.?$", re.IGNORECASE
+)
+
+
+def _match_session_warmup(seg: str):
+    """WARMUP, tried only on the first unconsumed segment. A segment
+    that doesn't reduce to exactly a bare WORK_UNIT plus the cue word --
+    e.g. an 'N x ...' SET that merely ends in the shared 'light'/'easy'
+    word -- fails, since _parse_work_chunk rejects anything but a single
+    amount+unit chunk."""
+    seg = seg.strip()
+    m = _SESSION_WARMUP_SUFFIX_RE.match(seg)
+    if m:
+        work = _parse_work_chunk(m.group(1))
+        if work is not None:
+            return work
+    m = _SESSION_WARMUP_PREFIX_RE.match(seg)
+    if m:
+        work = _parse_work_chunk(m.group(1))
+        if work is not None:
+            return work
+    return None
+
+
+def _match_session_cooldown(seg: str):
+    """COOLDOWN, tried only on the last unconsumed segment. Mirrors
+    _match_session_warmup above."""
+    seg = seg.strip()
+    m = _SESSION_COOLDOWN_SUFFIX_RE.match(seg)
+    if m:
+        work = _parse_work_chunk(m.group(1))
+        if work is not None:
+            return work
+    m = _SESSION_COOLDOWN_PREFIX_RE.match(seg)
+    if m:
+        work = _parse_work_chunk(m.group(1))
+        if work is not None:
+            return work
+    return None
+
+
+# SET, part 2: the existing FIXED interval matchers all require the rest
+# clause to sit *immediately* after the work chunk (no qualifier word in
+# between), so none of them accept e.g. '10 x 1:00 on / 1:00 off' ('on'
+# blocks the rest clause from being recognised). Reuse the *chain*
+# matcher's own permissive per-leg parsers instead
+# (_parse_variable_work_leg / _parse_variable_rest_leg, from pm5-7bk.1,
+# already know 'on' as a work qualifier and 'off' as a required rest
+# cue) for a plain 'N x WORK_LEG [/,] REST_LEG' shape. Tried only as a
+# fallback, after every existing fixed matcher, so it never changes what
+# they already handle on their own -- it only covers SET shapes none of
+# them recognise.
+_SESSION_N_X_LEG_RE = re.compile(r"^(" + _NUM_RE + r")\s*[xX]\s*(.+)$", re.IGNORECASE)
+
+
+def _match_n_x_leg_pair(text: str):
+    m = _SESSION_N_X_LEG_RE.match(text.strip())
+    if not m:
+        return None
+    count = _to_int(m.group(1))
+    rest_text = m.group(2).strip()
+    for split_re in (_SEGMENT_SPLIT_RE, _COMMA_SEGMENT_SPLIT_RE):
+        parts = split_re.split(rest_text)
+        if len(parts) != 2:
+            continue
+        work = _parse_variable_work_leg(parts[0])
+        rest_s = _parse_variable_rest_leg(parts[1])
+        if work is not None and rest_s is not None:
+            return _finalize(None, work, rest_s=rest_s, count=count)
+    return None
+
+
+def _regex_covers_whole_text(compiled_re: re.Pattern, text: str) -> bool:
+    """True iff compiled_re, searched against text, matches a span that
+    covers the ENTIRE text (start to end) -- not just some substring of
+    it. Used by _match_fixed_set below to reject a partial match rather
+    than silently accept it with unmatched trailing (or leading) text,
+    which is what let a SET's fixed matcher silently swallow only part
+    of a segment and drop the rest (see the pm5-7bk.3 review that added
+    this check)."""
+    m = compiled_re.search(text)
+    return m is not None and m.start() == 0 and m.end() == len(text)
+
+
+# The existing FIXED interval matchers a SET may reuse, paired with a
+# check that the matcher's OWN regex spans the whole (normalised)
+# segment text -- never a partial match, which a plain .search() is
+# otherwise happy to return while silently ignoring trailing/leading
+# text it didn't account for (e.g. "3 x 4 min / 2 min rest and 3 min
+# cool-down": _match_n_x_work_rest happily matches just "3 x 4 min / 2
+# min rest" and would otherwise let " and 3 min cool-down" -- a real,
+# separate leg -- vanish unclassified and unreported).
+#
+# _match_n_x_work_then_fallback_rest and _match_slash_or_dash_calories
+# are deliberately NOT reused here (unlike in the top-level _MATCHERS
+# pipeline): both search for their rest clause *anywhere* in the text
+# rather than immediately after the work chunk, so "whole text covered"
+# isn't a single contiguous regex span for them and can't be checked
+# this way. Every SET shape they exist to catch inside a session is
+# already covered by a stricter, self-anchored alternative --
+# _match_n_x_work_rest (adjacent rest) or _match_n_x_leg_pair (permissive
+# qualifier words, but still anchored end-to-end) -- so dropping them
+# here only removes a source of exactly this partial-match risk, without
+# losing any required SET shape.
+_FIXED_SET_MATCHERS = [
+    (_match_comma_minute_pyramid, lambda t: _regex_covers_whole_text(_COMMA_MIN_PYRAMID_RE, t)),
+    (
+        _match_slash_minutes_with_rest,
+        lambda t: (
+            _regex_covers_whole_text(_INTERVALS_OF_SLASH_MIN_RE, t)
+            or _regex_covers_whole_text(_SLASH_MIN_WITH_REST_RE, t)
+        ),
+    ),
+    (
+        _match_slash_distance_with_rest,
+        lambda t: _regex_covers_whole_text(_SLASH_DIST_WITH_REST_RE, t),
+    ),
+    (_match_n_rounds_of, lambda t: _regex_covers_whole_text(_N_ROUNDS_OF_WORK_REST_RE, t)),
+    (_match_n_x_work_rest, lambda t: _regex_covers_whole_text(_N_X_WORK_SEP_REST_RE, t)),
+    (
+        _match_n_x_work_with_rest,
+        lambda t: _regex_covers_whole_text(_N_X_WORK_WITH_REST_RE, t),
+    ),
+    # Already fully self-anchored (^...$ throughout, and each leg parser
+    # requires its own whole sub-part), so it can never partially match.
+    (_match_n_x_leg_pair, lambda t: True),
+]
+
+
+def _fixed_set_key(fixed_set: dict):
+    """Comparable (work, rest_s, count) key for a _match_fixed_set
+    result, used to detect a restated duplicate SET (see
+    _match_session)."""
+    work = fixed_set["work"]
+    return (tuple(sorted(work.items())), fixed_set["rest_s"], fixed_set["count"])
+
+
+def _match_fixed_set(text: str):
+    """Try each FIXED interval matcher against text, keeping only a
+    result whose own regex spans the WHOLE (normalised) text -- see
+    _regex_covers_whole_text -- and only a uniform fixed-shape result
+    (kind intervals_* other than intervals_variable -- a ladder/pyramid
+    result from e.g. _match_slash_minutes_with_rest on unequal values
+    isn't a SET this grammar can expand into count-many equal legs, so
+    that's treated as no match here, not as a session SET)."""
+    text = text.strip()
+    if text.endswith("."):
+        text = text[:-1].rstrip()
+    if not text:
+        return None
+    for matcher, covers_whole_text in _FIXED_SET_MATCHERS:
+        if not covers_whole_text(text):
+            continue
+        spec = matcher(text)
+        if spec is not None and spec["kind"] != "intervals_variable":
+            return spec
+    return None
+
+
+def _match_session(text: str):
+    """Parse the whole SESSION grammar (see the block comment above).
+    Full consumption is enforced directly (every split segment must
+    classify as WARMUP, a SET, or COOLDOWN, in that structural order, or
+    the whole match fails) rather than via the leftover-cue guard, since
+    a legitimate session's own text always contains a warm-up/cool-down
+    cue word next to a number+unit token -- exactly what that guard
+    would otherwise flag as leftover (see the self_guarded parameter on
+    _leftover_cue_guard).
+
+    Returns None (never guesses) if any segment can't be classified, or
+    if the text is just one bare SET with no WARMUP/COOLDOWN and no
+    second SET -- that case is left to the plain fixed-interval matchers
+    so '10 x 1 min / 1 min easy' stays intervals_time, not a one-set
+    'session'."""
+    segs = _split_session_segments(text)
+    n = len(segs)
+    if n == 0:
+        return None
+
+    i = 0
+    warmup_work = _match_session_warmup(segs[0][0])
+    if warmup_work is not None:
+        i = 1
+
+    end = n
+    cooldown_work = None
+    if end > i:
+        cooldown_work = _match_session_cooldown(segs[end - 1][0])
+        if cooldown_work is not None:
+            end -= 1
+
+    # Consume SET(s) from the remaining [i, end) segments. For each SET,
+    # try the smallest span first (just segs[i] alone); grow across a
+    # COMMA boundary one segment at a time only when the smaller span
+    # doesn't match on its own (e.g. "8 x 500m" alone has no rest clause
+    # and fails every fixed matcher, forcing a grow to "8 x 500m, 2
+    # minutes rest", which does match) -- this is what keeps a comma
+    # that belongs to a SET's own rest clause from being treated as a
+    # session-level segment boundary.
+    sets = []
+    while i < end:
+        # The separator immediately before this SET's own first segment
+        # -- used below to decide whether an identical repeat is prose
+        # restatement (only across a bare NEWLINE, i.e. a title vs. its
+        # description in this corpus's title+"\n"+description
+        # convention) or a genuine second block (across a comma, ';',
+        # 'then'/'and then', or 'followed by' -- all of which state a
+        # deliberate second SET, never a restatement of the first).
+        boundary_before_set = segs[i][1]
+        joined_parts = [segs[i][0]]
+        span = 1
+        matched = _match_fixed_set(joined_parts[0])
+        while matched is None:
+            next_idx = i + span
+            if next_idx >= end or segs[next_idx][1] != "comma":
+                break
+            joined_parts.append(segs[next_idx][0])
+            span += 1
+            matched = _match_fixed_set(", ".join(joined_parts))
+        if matched is None:
+            # Unclassified segment(s) -- never guess.
+            return None
+        # A SET whose (work, rest_s, count) is identical to the
+        # immediately preceding SET, separated from it by a bare
+        # NEWLINE, is a prose restatement of it (e.g. a title's terse
+        # "8 x 500m, 2 minutes rest" restated in the description as
+        # "8 x 500m intervals with 2 minutes rest."), not a second
+        # distinct interval block: consume it (so it isn't leftover,
+        # unclassified text) but don't add a duplicate SET's worth of
+        # legs, and don't let it count toward the "or a 2nd SET" arity
+        # rule below. An identical SET separated by anything else --
+        # comma, ';', 'then'/'and then', 'followed by' -- is a genuine
+        # repeat (e.g. "4 x 500m / 1 min rest, then 4 x 500m / 1 min
+        # rest" really does mean 8 work legs, not 4), and a SET with
+        # *different* values is of course never deduped either way.
+        if (
+            sets
+            and boundary_before_set == "newline"
+            and _fixed_set_key(matched) == _fixed_set_key(sets[-1])
+        ):
+            pass
+        else:
+            sets.append(matched)
+        i += span
+
+    if not sets:
+        return None
+    if warmup_work is None and cooldown_work is None and len(sets) < 2:
+        return None
+
+    legs = []
+    first_set_rest = sets[0]["rest_s"]
+    if warmup_work is not None:
+        # Design decision: the warm-up flows into the FIRST set's own
+        # rest (not a rest of 0) -- the warm-up leg still needs some
+        # rest value to hand off into the first work interval, and the
+        # first SET's own rest is the only rest value in scope for it.
+        legs.append({"work": warmup_work, "rest_s": first_set_rest})
+
+    for idx, s in enumerate(sets):
+        if s["rest_s"] == 0 and idx != len(sets) - 1:
+            # validate_spec forbids rest_s == 0 on a non-final leg; a
+            # SET with no rest that isn't the last SET would produce
+            # exactly that once expanded. Never guess a rest value here.
+            return None
+        for _ in range(s["count"]):
+            legs.append({"work": s["work"], "rest_s": s["rest_s"]})
+
+    if cooldown_work is not None:
+        legs.append({"work": cooldown_work, "rest_s": 0})
+    else:
+        # The PM5 never runs the last rest -- with no COOLDOWN leg, the
+        # final SET's own last leg becomes the final leg overall.
+        legs[-1] = {"work": legs[-1]["work"], "rest_s": 0}
+
+    return _finalize(None, None, intervals=legs)
+
+
+# ---------------------------------------------------------------------------
 # BikeErg override application
 # ---------------------------------------------------------------------------
 
@@ -954,11 +1657,20 @@ def _apply_bikeerg_override(spec: dict, overrides) -> dict:
 # Top-level parse_spec
 # ---------------------------------------------------------------------------
 
-# Matchers tried in priority order (most specific first).
+# Matchers tried in priority order (most specific first). _match_session
+# is tried before every fixed-interval matcher (it needs first refusal
+# so a warm-up/cool-down-wrapped SET isn't instead swallowed piecemeal
+# by a fixed matcher matching just the SET portion) and before
+# _match_variable_chain too: a session's SET always has its own explicit
+# 'N x'/'rounds of'/ladder count, a shape _match_variable_chain's
+# alternating-legs-without-a-count grammar never produces, so the two
+# are effectively disjoint and ordering between them doesn't change any
+# result -- _match_session goes first as the more specific, more
+# tightly-validated (full segment consumption) check of the two.
 _MATCHERS = [
     _match_equal_work_and_rest,
-    _match_comma_variable_chain,
-    _match_slash_variable_rest_chain,
+    _match_session,
+    _match_variable_chain,
     _match_comma_minute_pyramid,
     _match_slash_minutes_with_rest,
     _match_slash_distance_with_rest,
@@ -1028,7 +1740,35 @@ _OUTER_REPEAT_OF_RE = re.compile(r"\b(" + _NUM_RE + r")\s*(?:rounds?|sets?)\s+of
 # Ranking..."), so a whole-text word search alone is not reliable.
 _REST_CUE_WORDS_RE = re.compile(
     r"\b(rest|easy|off|recovery|recover|light|between|on/off|then"
-    r"|followed by|warmup|warm up|cool down)\b",
+    r"|followed by|warm-up|warm up|warmup|cool-down|cool down|cooldown)\b",
+    re.IGNORECASE,
+)
+
+# Structural leftover cues that signal an outside warm-up/cool-down/
+# chained leg a matched fixed *interval* span cannot represent --
+# narrower than _REST_CUE_WORDS_RE above (deliberately excludes
+# rest/easy/light/off/recovery/between, which legitimately occur
+# *inside* an interval matcher's own captured rest-word suffix, e.g.
+# "8 x 500m, 2 minutes rest"; warm-up/cool-down/then never legitimately
+# occur inside a fixed-interval matcher's own captured span). Only
+# disqualifying when a cue word here co-occurs with a number+unit work
+# token in the same sentence -- see _sentence_has_interval_leftover_cue
+# below.
+_INTERVAL_LEFTOVER_CUE_WORDS_RE = re.compile(
+    r"\b(warm-up|warm up|warmup|cool-down|cool down|cooldown|then)\b",
+    re.IGNORECASE,
+)
+
+# Same idea, restricted to warm-up/cool-down only (no "then"), for
+# intervals_variable results. The intervals_variable-producing matchers
+# (ladders/pyramids as well as the variable chain) only match the
+# concise title-line shape and routinely trust a prose *description*
+# that restates the same ladder with "... then 1000m, then 500m." --
+# unlike warm-up/cool-down, a bare "then" is not a reliable signal of
+# an untracked extra leg here, so it is intentionally left out of this
+# narrower set to avoid rejecting that legitimate restatement style.
+_VARIABLE_LEFTOVER_CUE_WORDS_RE = re.compile(
+    r"\b(warm-up|warm up|warmup|cool-down|cool down|cooldown)\b",
     re.IGNORECASE,
 )
 
@@ -1112,9 +1852,41 @@ def _sentence_disqualifies_single(sentence: str) -> bool:
     return False
 
 
-def _leftover_cue_guard(kind: str, clean_text: str) -> bool:
+def _sentence_has_interval_leftover_cue(sentence: str, cue_re: re.Pattern) -> bool:
+    """Return True if this one sentence (from clean_text, split on
+    [.!?\\n]) carries a cue word matched by cue_re together with a
+    number+unit work token -- e.g. "7 min warm-up", "then 3 minutes
+    cool down". A bare cue word alone, with no accompanying
+    duration/distance in the same sentence (e.g. "Warm up well
+    first."), is not disqualifying -- mirrors the co-occurrence rule in
+    _sentence_disqualifies_single above, but scoped to the narrower
+    _INTERVAL_LEFTOVER_CUE_WORDS_RE / _VARIABLE_LEFTOVER_CUE_WORDS_RE
+    cue sets (see their comments for why rest/easy/light/off/
+    recovery/between/then are excluded)."""
+    if not cue_re.search(sentence):
+        return False
+    return bool(_NUM_UNIT_TOKEN_RE.search(sentence))
+
+
+def _leftover_cue_guard(kind: str, clean_text: str, self_guarded: bool = False) -> bool:
     """Return True if clean_text still carries a cue the matched kind
-    cannot represent -- i.e. the spec must be discarded (never guess)."""
+    cannot represent -- i.e. the spec must be discarded (never guess).
+
+    self_guarded: True when the spec came from _match_variable_chain or
+    _match_session, matchers that already enforce their own full-text-
+    consumption rule (see the long comment above _match_variable_chain,
+    and _match_session's docstring) -- so the generic sentence-scoped
+    warm-up/cool-down/then check below is skipped for their results.
+    Applying it on top would reject:
+      - the chain matcher's own legitimate prose restatements (e.g. "A 6
+        minute warm-up, then ten 1 minute hard efforts ..., then a 3
+        minute cool-down.") that say in prose exactly what the chain
+        already captured;
+      - every successful _match_session result outright, since a
+        session's own matched text always contains a warm-up/cool-down
+        cue word next to a number+unit token -- that's what the session
+        matcher itself looks for, not leftover content it failed to
+        capture."""
     count_hits = _COUNT_CUE_RE.findall(clean_text)
     has_count_cue = bool(count_hits) or bool(_PLURAL_NUM_CUE_RE.search(clean_text))
 
@@ -1135,7 +1907,17 @@ def _leftover_cue_guard(kind: str, clean_text: str) -> bool:
         # remains -- a variable-interval description legitimately mentions
         # its own piece count in prose (e.g. "Seven intervals in a
         # pyramid of ...").
-        return bool(_OUTER_REPEAT_OF_RE.search(clean_text))
+        if _OUTER_REPEAT_OF_RE.search(clean_text):
+            return True
+        if self_guarded:
+            return False
+        # A leftover warm-up/cool-down cue co-occurring with a
+        # number+unit token in the same sentence signals an extra leg
+        # this variable-interval match didn't actually capture.
+        for sentence in _SENTENCE_SPLIT_RE.split(clean_text):
+            if _sentence_has_interval_leftover_cue(sentence, _VARIABLE_LEFTOVER_CUE_WORDS_RE):
+                return True
+        return False
 
     # Fixed intervals_* (intervals_distance/time/calorie): allowed as long
     # as no outer-repeat cue remains that isn't a restatement of the same
@@ -1153,6 +1935,15 @@ def _leftover_cue_guard(kind: str, clean_text: str) -> bool:
     without_followed_by_rest = _FOLLOWED_BY_REST_RE.sub(" ", clean_text)
     if re.search(r"\bthen\b|\bfollowed by\b", without_followed_by_rest, re.IGNORECASE):
         return True
+
+    # A leftover warm-up/cool-down cue (or a 'then' not already caught
+    # above) co-occurring with a number+unit token in the same sentence
+    # signals an extra leg this fixed-interval match didn't capture,
+    # e.g. "7 min warm-up, 10 x 1 min hard / 1 min light, 3 min
+    # cool-down".
+    for sentence in _SENTENCE_SPLIT_RE.split(clean_text):
+        if _sentence_has_interval_leftover_cue(sentence, _INTERVAL_LEFTOVER_CUE_WORDS_RE):
+            return True
 
     return False
 
@@ -1186,9 +1977,11 @@ def parse_spec(text: str, machines: str | None = None) -> dict | None:
     clean = _strip_parenthetical_and_notes(text)
 
     spec = None
+    matched_by = None
     for matcher in _MATCHERS:
         spec = matcher(clean)
         if spec is not None:
+            matched_by = matcher
             break
 
     if spec is None:
@@ -1197,7 +1990,11 @@ def parse_spec(text: str, machines: str | None = None) -> dict | None:
     if spec is None:
         return None
 
-    if _leftover_cue_guard(spec["kind"], clean):
+    if _leftover_cue_guard(
+        spec["kind"],
+        clean,
+        self_guarded=(matched_by is _match_variable_chain or matched_by is _match_session),
+    ):
         return None
 
     spec["machine"] = machine

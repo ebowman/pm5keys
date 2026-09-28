@@ -23,7 +23,20 @@ A    Intervals          : Distance
 4xA  Intervals: Distance: cursor right to rest minutes
 2xB  Intervals: Distance: rest minutes +2 (now 2)
 E    Intervals: Distance: confirm
+
+$ pm5keys --summary --no-llm "7 min warm-up, 10 x 1 min hard / 1 min light, 3 min cool-down"
+7 min warm-up, 10 x 1 min hard / 1 min light, 3 min cool-down
+Workout (31:00, 12 legs)
+1      7:00      rest 1:00
+2-11   1:00      rest 1:00   (x10)
+12     3:00      —
+
+PM5: B-4D-6B-4A-B-E-D-6C-E-D-E-D-E-D-E-D-E-D-E-D-E-D-E-D-E-D-E-D-2B-2E
 ```
+
+`--summary` prints a leg-by-leg table for the parsed workout before the
+key-sequence line — one row per leg for `intervals_variable` workouts,
+collapsing consecutive identical legs into a single range row.
 
 `--explain` walks the PM5's own menu simulator press by press, so you
 can see exactly which screen each button acts on and why.
@@ -73,7 +86,8 @@ With no positional argument, the workout text is read from stdin.
 
 | Flag | Meaning |
 |---|---|
-| `--explain` | print a per-press explanation of the PM5 sequence (screen + action for each button) |
+| `--explain` | print a per-press explanation of the PM5 sequence (screen + action for each button). For `intervals_variable` workouts, runs of consecutive legs that program identically, press for press, collapse into one `<n>x ...` summary line covering the leg range |
+| `--summary` | print a plain-text leg table for the parsed spec before the key-sequence line(s) (one row per leg for `intervals_variable`, collapsing consecutive identical legs into a range row; one line for fixed intervals or a single piece), followed by a blank line. Composes with `--explain` (table, then key line(s), then explain) |
 | `--llm {auto,none,anthropic,claude-cli}` | which LLM backend to use when the deterministic rules can't parse the text (default: `auto` — prefers the Anthropic SDK+key, then the `claude` CLI, then disables the fallback) |
 | `--no-llm` | alias for `--llm none`; never fall back to the LLM extractor |
 | `--model MODEL` | LLM model id/alias to pass through to the resolved backend |
@@ -87,7 +101,9 @@ no traceback, when: the input text is empty; the rules can't parse the
 text and `--llm none`/`--no-llm` was given; the resolved LLM backend is
 unavailable when the fallback is needed (e.g. the `llm` extra isn't
 installed, or no API key/CLI is configured); the LLM extractor fails;
-the parsed spec fails to compile into keys; or (for a single
+the parsed spec fails to compile into keys (including a variable-interval
+workout with more legs than the target monitor's Intervals: Variable
+screen holds -- 50 legs on both PM5 and PM3/PM4); or (for a single
 `--monitor pm3`/`pm4` target only) the workout is a calorie workout,
 which PM3/PM4 don't support (`--monitor both` degrades gracefully
 instead — see [docs/pm3-model.md](docs/pm3-model.md)).
@@ -105,6 +121,13 @@ of Concept2's own WOD phrasings directly, for example:
 - `10 x 20 calories/:20 rest`
 - `1/3/5/3/1 minutes with 2 minutes rest`
 - `2000/1500/1000/500m with three minutes rest`
+- `7 min warm-up, 10 x 1 min hard / 1 min light, 3 min cool-down`
+  (warm-up + sets + cool-down folds into one Variable-interval
+  workout — see the Demo section above for its `--summary` output)
+- `6 minutes easy, 1 minute rest, 1 minute hard, 1 minute rest,
+  3 minutes easy` (a comma/slash chain of any mix of distance/time/
+  calorie legs; a longer 12-leg example is in
+  [docs/pm5-model.md](docs/pm5-model.md#session-workouts-fold-into-one-variable-interval-spec))
 
 Free-form phrasings that don't match a known pattern fall back to an
 optional LLM extractor (see Install/Usage above), for example:

@@ -1,6 +1,6 @@
 # WorkoutSpec
 
-`wod/spec.py` defines an intermediate representation, the **WorkoutSpec**,
+`src/pm5keys/spec.py` defines an intermediate representation, the **WorkoutSpec**,
 that sits between a free-form Concept2 WOD title/description and the PM5
 button-press sequence. `parse_spec(text, machines)` turns text into a
 WorkoutSpec dict (or `None` if it cannot parse the text with confidence).
@@ -34,7 +34,7 @@ nothing else.
 }
 ```
 
-`validate_spec(spec)` (in `wod/spec.py`) enforces this shape and raises
+`validate_spec(spec)` (in `src/pm5keys/spec.py`) enforces this shape and raises
 `ValueError` on any violation. It is also exposed as the `SCHEMA` constant
 for documentation purposes.
 
@@ -59,6 +59,15 @@ Rules:
   4:00 - equal work and rest`) are `intervals_variable` where each
   interval's `rest_s` equals its own work duration (except the last,
   which is 0).
+- **No leg-count cap in the spec itself.** `validate_spec` places no
+  limit on the length of an `intervals_variable` spec's `intervals`
+  list — the parser (`_match_variable_chain`, `_match_session`, and the
+  ladder/pyramid matchers) is allowed to describe an arbitrarily long
+  workout. The 50-leg cap is enforced only where a spec is *compiled*
+  to PM5 keys (`compile_keys`), since that's a hardware limit of the
+  target monitor's Variable-interval screen, not a property of the
+  workout description itself; see `docs/pm5-model.md` for the
+  compile-time error message.
 - **`notes`** carries framing text the spec doesn't otherwise capture
   (e.g. "time trial", "as fast as you can", "for time", challenge
   blurbs) — currently `parse_spec` always sets `notes` to `""`, since
@@ -145,6 +154,9 @@ fallback for anything the title omits — usually rest and count).
 | Time trial / "as fast as you can" / "for time" (single, framing to notes) | `5000m time trial` |
 | Variable rest chain, slash-separated | `2000m/3 minutes rest/1000m/2 minutes rest/500m` |
 | Variable rest chain, comma-separated, mixed units | `3000m, 3 minutes rest, 10 minutes work` |
+| Variable rest chain, time legs with qualifiers (`work`/`hard`/`easy`/`light`/`steady`/`on`/`warm-up`/`cool-down`/`row` on work legs, a required rest cue on rest legs) | `6 minutes easy, 1 minute rest, 1 minute hard, 1 minute rest, 3 minutes easy` (longer 12-leg version in [docs/pm5-model.md](pm5-model.md#session-workouts-fold-into-one-variable-interval-spec)) |
+| Session: `[warm-up], N x WORK / REST, [cool-down]` | `7 min warm-up, 10 x 1 min hard / 1 min light, 3 min cool-down` |
+| Session, then-chained sets (each `then`/`,`/`;`/`followed by` between sets is a genuine second set, not a restatement) | `4 x 500m / 1 min rest, then 4 x 250m / 30 sec rest` |
 | "Equal work and rest" ladder | `1:00, 1:30, 2:00, 2:30, 3:00, 3:30, 4:00 - equal work and rest.` |
 | Title omits rest, description supplies it | title `5 x 1000m`, description `5 x 1000m with 20 seconds rest` |
 | BikeErg override (see above) | `(BikeErg: 1000m)` |
@@ -163,12 +175,17 @@ fallback for anything the title omits — usually rest and count).
   would be exactly the kind of guess this parser refuses to make.
 - **"N rounds of M x ..." nested repeats** (`2 rounds of 16 x 20 seconds
   work and 10 seconds rest`) — same flat-schema limitation as Tabata:
-  the rule parser (`wod/spec.py`) leaves these unparsed and returns
-  `None`. The LLM extractor (`wod/llm_extract.py`) does not have this
-  limitation — its prompt instructs it to unroll nested rounds/sets
-  into a single flat `intervals_variable` list, one entry per interval
-  leg across all rounds, with the between-rounds rest placed on the
-  last leg of each round.
+  the rule parser (`src/pm5keys/spec.py`) leaves these unparsed and
+  returns `None`. This is a genuine *nested* repeat (an outer round
+  count wrapping an inner set), not the flat `[warm-up], SET (,
+  SET)*, [cool-down]` session shape the rules parser does handle (see
+  the pattern table above) — a session's sets are siblings, never
+  wrapped in an outer repeat count. The LLM extractor
+  (`src/pm5keys/llm/`) does not have this limitation — its prompt
+  instructs it to unroll nested rounds/sets into a single flat
+  `intervals_variable` list, one entry per interval leg across all
+  rounds, with the between-rounds rest placed on the last leg of each
+  round.
 - **A single distance explicitly "split into" unequal, no-rest
   sub-intervals** (`4,024m ... split into three intervals
   1000m/2024m/1000m ... no rest`) — this is scored as one continuous
@@ -244,11 +261,57 @@ correctly-matched phrasing:
   work followed by 45 seconds rest` — same `20`, not a nested repeat),
   and no `then`/`followed by` chaining cue remains once the legitimate
   "`... followed by DURATION rest-word`" phrasing (e.g. "`followed by 2
-  minutes rest`") is discounted.
+  minutes rest`") is discounted. The same sentence-scoped check also
+  covers `warm-up`/`cool-down` (`warm-up`, `warm up`, `warmup`,
+  `cool-down`, `cool down`, `cooldown`) alongside `then`: any of these,
+  sharing a sentence with a number+unit work token, disqualifies — e.g.
+  `8 x 500m, 2 minutes rest and a light cool down jog` is left
+  unparsed, since the fixed matcher only captured the `8 x 500m, 2
+  minutes rest` piece and the sentence-scoped cool-down mention signals
+  an extra leg it didn't.
 - **`intervals_variable`**: allowed as long as no outer-repeat (`N
   rounds/sets of`) cue remains — a variable-interval description
   legitimately restates its own piece count in prose (e.g. "Seven
-  intervals in a pyramid of 1-2-3-4-3-2-1 minutes...").
+  intervals in a pyramid of 1-2-3-4-3-2-1 minutes..."). The same
+  sentence-scoped `warm-up`/`cool-down` leftover check as above also
+  applies here (narrower: no bare `then`, since a variable result's own
+  ladder/pyramid/chain matchers routinely accept a prose restatement
+  like "... then 1000m, then 500m." on the description line) — *except*
+  for a result that came from `_match_variable_chain` or `_match_session`
+  themselves (see below), which skip this generic check because their
+  own full-consumption rule already covers the same ground more
+  precisely.
+
+**Self-guarded matchers.** `_match_variable_chain` (the generalized
+comma/slash chain matcher, pm5-7bk.1) and `_match_session` (the
+`[warm-up], SET (, SET)*, [cool-down]` session matcher, pm5-7bk.3) each
+enforce their own full-text-consumption rule instead of relying on the
+generic sentence-scoped leftover-cue check above:
+
+- **Chain matcher (restatement shape).** The chain itself must be a
+  whole physical line (`^...$`, optionally followed by a trailing
+  period) — nothing on that line may sit outside it. Text on *other*
+  lines (title vs. description) is accepted only in "restatement
+  shape": no outer-repeat cue (`N rounds/sets of`) anywhere outside the
+  chain; the first work mention outside the chain is either at the very
+  start of the text, right after sentence-ending punctuation, or right
+  after a bare article (`a`/`an`/`the`); and every number+unit mention
+  outside the chain, taken in order, must be an in-order subsequence of
+  the chain's own leg values (each used at most once) — a mention that
+  repeats a chain value out of order, or introduces a value the chain
+  never had, rejects. E.g. `2000m, 3 minutes rest, 1000m` as the title
+  with `A 2000m piece with 3 minutes rest, then a 1000m piece.` as the
+  description restates the chain in order and parses; the same title
+  with `Then do another 1000m for good measure.` as the description
+  introduces a mention the chain doesn't account for and is rejected.
+- **Session matcher (full-segment requirement).** The whole text is
+  split into segments (on `,`, `;`, newline, `then`, `and then`,
+  `followed by`); every segment must classify as the (optional)
+  warm-up, a SET, or the (optional) cool-down, in that order, or the
+  entire match fails — there is no partial session. E.g. `7 min
+  warm-up, 10 x 1 min hard / 1 min light, but stretch after` fails
+  outright, because the trailing segment is neither a valid SET nor a
+  valid cool-down.
 
 Reproductions (previously mis-parsed as `single_distance`, now `None`):
 
@@ -264,6 +327,10 @@ Reproductions (previously mis-parsed as `single_distance`, now `None`):
 - `row 5000m, then ski 5000m`
 - `3 sets of 4 x 250m with 45 seconds off`
 - `5 x 500m`
+- `8 x 500m, 2 minutes rest and a light cool down jog` (fixed-interval
+  leftover cool-down cue)
+- `7 min warm-up, 10 x 1 min hard / 1 min light, but stretch after`
+  (session matcher's trailing segment doesn't classify)
 
 Time-trial and event-note framing is unaffected: `5000m time trial`,
 `30 minutes`, `250 Calories`, and `1000m for the 2024 World Rowing
@@ -365,17 +432,17 @@ the `10 minutes work` leg is untouched.
 ## CLI
 
 ```
-python3 wod/spec.py "<text>" [--machines X]
+python -m pm5keys.spec "<text>" [--machines X]
     Parse a single piece of text and print the resulting spec as JSON,
     or exit 2 and print 'unparsed' to stderr.
 
-python3 wod/spec.py --coverage wod/dataset_unique.jsonl
+python -m pm5keys.spec --coverage data/dataset_unique.jsonl
     Run parse_spec over every row (title + '\n' + description, using
     the row's machines), print parsed/unparsed counts (both weighted
     by distinct row and by the row's `count` field), and write:
-      wod/spec_unparsed.md   -- every unparsed row (count, machines,
-                                 title, description)
-      wod/spec_parsed.jsonl  -- {title, description, machines, pm5,
+      data/reports/spec_unparsed.md -- every unparsed row (count,
+                                 machines, title, description)
+      data/spec_parsed.jsonl -- {title, description, machines, pm5,
                                  spec} for every parsed row, committed
                                  for the next bead (spec -> PM5 keys)
                                  to consume.
