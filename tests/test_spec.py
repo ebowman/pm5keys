@@ -309,6 +309,64 @@ class ParseSpecPatternTest(unittest.TestCase):
         self.assertEqual(intervals[1]["work"], {"time_s": 600})
         self.assertEqual(intervals[1]["rest_s"], 0)
 
+    def test_variable_rest_comma_chain_no_longer_truncated(self):
+        # '3000m, 3 minutes rest, 10 minutes work, 2 minutes rest, 5
+        # minutes work' -- must not silently truncate to the first two
+        # legs.
+        text = (
+            "3000m, 3 minutes rest, 10 minutes work, 2 minutes rest, 5 "
+            "minutes work\n"
+            "A 3000m interval, then 3 minutes rest, then 10 minutes of "
+            "work, then 2 minutes rest, then 5 minutes of work."
+        )
+        s = spec.parse_spec(text, "All Machines")
+        self.assertEqual(s["kind"], "intervals_variable")
+        intervals = s["intervals"]
+        self.assertEqual(
+            [iv["work"] for iv in intervals],
+            [{"distance_m": 3000}, {"time_s": 600}, {"time_s": 300}],
+        )
+        self.assertEqual([iv["rest_s"] for iv in intervals], [180, 120, 0])
+
+    def test_slash_variable_chain_with_time_leg(self):
+        # '2000m/3 minutes rest/5 minutes/2 minutes rest/500m'
+        text = (
+            "2000m/3 minutes rest/5 minutes/2 minutes rest/500m\n"
+            "A 2000m interval, followed by 3 minutes rest. Then 5 "
+            "minutes of work, followed by 2 minutes rest. Then 500m."
+        )
+        s = spec.parse_spec(text, "All Machines")
+        self.assertEqual(s["kind"], "intervals_variable")
+        intervals = s["intervals"]
+        self.assertEqual(
+            [iv["work"] for iv in intervals],
+            [{"distance_m": 2000}, {"time_s": 300}, {"distance_m": 500}],
+        )
+        self.assertEqual([iv["rest_s"] for iv in intervals], [180, 120, 0])
+
+    def test_variable_chain_twelve_legs(self):
+        # A long comma chain with qualifiers on every work leg and a
+        # required 'rest' cue on every rest leg -- no leg-count cap.
+        text = (
+            "6 minutes easy, 1 minute rest, 1 minute hard, 1 minute "
+            "rest, 1 minute hard, 1 minute rest, 1 minute hard, 1 "
+            "minute rest, 1 minute hard, 1 minute rest, 1 minute hard, "
+            "1 minute rest, 1 minute hard, 1 minute rest, 1 minute "
+            "hard, 1 minute rest, 1 minute hard, 1 minute rest, 1 "
+            "minute hard, 1 minute rest, 1 minute hard, 1 minute rest, "
+            "3 minutes easy\n"
+            "A 6 minute warm-up, then ten 1 minute hard efforts with 1 "
+            "minute rest between each, then a 3 minute cool-down."
+        )
+        s = spec.parse_spec(text, "All Machines")
+        self.assertEqual(s["kind"], "intervals_variable")
+        intervals = s["intervals"]
+        self.assertEqual(len(intervals), 12)
+        expected_work = [{"time_s": 360}] + [{"time_s": 60}] * 10 + [{"time_s": 180}]
+        expected_rest = [60] * 11 + [0]
+        self.assertEqual([iv["work"] for iv in intervals], expected_work)
+        self.assertEqual([iv["rest_s"] for iv in intervals], expected_rest)
+
     def test_equal_work_and_rest(self):
         # '1:00, 1:30, 2:00, 2:30, 3:00, 3:30, 4:00 - equal work and
         # rest.'
@@ -546,6 +604,253 @@ class ParseSpecNegativeTest(unittest.TestCase):
 
     def test_five_x_500m_still_unparsed(self):
         self.assertIsNone(spec.parse_spec("5 x 500m", "All Machines"))
+
+    def test_variable_chain_rest_leg_without_cue_unparsed(self):
+        # '500m, 2 minutes, 500m' -- the middle (rest-position) leg has
+        # no rest cue, so the whole chain must fail rather than guess.
+        text = (
+            "500m, 2 minutes, 500m\n"
+            "A 500m interval, then 2 minutes, then another 500m."
+        )
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_variable_chain_work_leg_says_rest_unparsed(self):
+        # A work-position leg saying 'rest' is not a valid work leg --
+        # the whole chain must fail.
+        text = (
+            "500m, 2 minutes rest, 500m rest\n"
+            "A 500m interval, followed by 2 minutes rest, then 500m "
+            "rest."
+        )
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_variable_chain_trailing_junk_unparsed(self):
+        # Trailing text after the chain on the same line is not
+        # consumed by any leg, so the whole chain must fail rather than
+        # silently drop it.
+        text = "500m, 1 minute rest, 500m and then some"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_variable_chain_leading_junk_unparsed(self):
+        # Leading text before the chain on the same line is not
+        # consumed by any leg, so the whole chain must fail.
+        text = "then do 500m, 1 minute rest, 500m"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_variable_chain_surrounded_by_warmup_cooldown_unparsed(self):
+        # Leading warm-up and trailing cool-down text bracket the chain
+        # on the same line -- the matcher must not drop them.
+        text = "Warm up 10 minutes, then 500m, 1 minute rest, 500m, then cool down"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_variable_chain_parenthesized_by_n_x_unparsed(self):
+        # A chain-shaped substring inside "N x (...)" is not itself a
+        # full-line chain and must not be guessed at.
+        text = "4 x (500m, 1 minute rest, 500m)"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_variable_chain_does_not_steal_n_x_with_rest(self):
+        # Regression: "3 x 500m, 1 minute rest, 500m" starts with an N x
+        # count prefix, so the leading '3 x 500m' is not itself a chain
+        # leg -- the whole line must fail full consumption and fall
+        # through to the N x WORK, REST matcher, same as before the
+        # variable-chain matcher was generalised.
+        text = "3 x 500m, 1 minute rest, 500m"
+        s = spec.parse_spec(text, "All Machines")
+        self.assertEqual(s["kind"], "intervals_distance")
+        self.assertEqual(s["work"], {"distance_m": 500})
+        self.assertEqual(s["count"], 3)
+        self.assertEqual(s["rest_s"], 60)
+
+    def test_variable_chain_multiline_bracketed_by_other_content_unparsed(self):
+        # The chain fills one whole line, but sibling lines carry real,
+        # distinct workout content (a warm-up sentence, a trailing "N x"
+        # block) introducing numbers the chain doesn't account for --
+        # full consumption must reject this, not silently drop the
+        # other lines.
+        text = "Warm up 10 minutes.\n500m, 1 minute rest, 500m\nThen 4 x 250m"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_variable_chain_multiline_n_x_prefix_line_falls_through(self):
+        # Regression: an "N x" count sits alone on its own line, with the
+        # chain-shaped body on the next line. This must NOT be read as a
+        # 2-leg variable chain -- it must fall through to the N x WORK,
+        # REST matcher, same as the single-line "3 x 500m, 1 minute
+        # rest, 500m" case.
+        text = "3 x\n500m, 1 minute rest, 500m"
+        s = spec.parse_spec(text, "All Machines")
+        self.assertEqual(s["kind"], "intervals_distance")
+        self.assertEqual(s["work"], {"distance_m": 500})
+        self.assertEqual(s["count"], 3)
+        self.assertEqual(s["rest_s"], 60)
+
+    def test_variable_chain_multiline_trailing_leftover_unparsed(self):
+        # The chain fills the first line, but a second line tacks on an
+        # unrelated, unaccounted-for leg ("then 2000m") -- full
+        # consumption must reject this rather than silently truncate to
+        # just the first line's chain.
+        text = "500m, 1 minute rest, 500m\nthen 2000m"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_variable_chain_sibling_count_cue_rejected_even_if_numbers_match(self):
+        # A sibling line has an "N x" count cue where N and a distance it
+        # mentions both happen to already be numbers the chain uses --
+        # the count cue itself (not the numbers) is what must reject the
+        # variable-chain match. (Phrased so "3" and "x" aren't directly
+        # adjacent to a work unit, e.g. literal "3 x 500m" on the sibling
+        # line -- that exact phrasing is also a valid standalone "N x
+        # WORK ... rest elsewhere" instruction that a different,
+        # pre-existing fallback matcher legitimately picks up once the
+        # chain matcher steps aside, which would make this an
+        # end-to-end intervals_distance positive rather than a
+        # variable-chain negative; see _match_n_x_work_then_fallback_rest.)
+        text = "500m, 1 minute rest, 500m\n3 x easy warm up before the usual 500m"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+        clean = spec._strip_parenthetical_and_notes(text)
+        self.assertIsNone(spec._match_variable_chain(clean))
+
+    def test_variable_chain_sibling_bare_number_ignored(self):
+        # A sibling line mentions a bare, unit-less number (a day/event
+        # count, not a work/rest amount) -- full consumption must still
+        # accept the chain since nothing unit-bearing or count-cued is
+        # left over.
+        text = "3000m, 3 minutes rest, 10 minutes work\nDay 2 of the challenge"
+        s = spec.parse_spec(text, "All Machines")
+        self.assertEqual(s["kind"], "intervals_variable")
+        intervals = s["intervals"]
+        self.assertEqual(
+            [iv["work"] for iv in intervals],
+            [{"distance_m": 3000}, {"time_s": 600}],
+        )
+        self.assertEqual([iv["rest_s"] for iv in intervals], [180, 0])
+
+    def test_variable_chain_multiset_role_mismatch_unparsed(self):
+        # The chain's only 60-second value is a REST leg. A sibling
+        # mention of "1 minute" tagged as WORK ("hard") cannot draw from
+        # that rest-only budget -- multiset entries are role-tagged for
+        # time values (see the full-consumption comment), so this must
+        # reject even though 60 is nominally "a chain number".
+        text = "500m, 1 minute rest, 500m\nthen 1 minute hard"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_variable_chain_multiset_value_exceeded_unparsed(self):
+        # The chain has exactly two 500m work legs. A description that
+        # restates 500m a THIRD time exceeds that budget once the first
+        # two mentions have already drawn it down to zero -- reject.
+        # (A single extra bare mention with no other restatement, e.g.
+        # "Finish with 500m", does NOT exceed a budget of two and is
+        # correctly accepted; this test spends the whole budget first so
+        # the third mention has nothing left to match.)
+        text = (
+            "500m, 1 minute rest, 500m\n"
+            "Do 500m, then 1 minute rest, then 500m again, then finish "
+            "with one more 500m."
+        )
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_variable_chain_multiset_value_exceeded_distance_k_unparsed(self):
+        # Same as above with 'k' distance units and a third restatement.
+        text = (
+            "1k, 1 minute rest, 1k\n"
+            "Do 1k, then 1 minute rest, then 1k again, then finish with "
+            "one more 1k."
+        )
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_variable_chain_multiset_kind_mismatch_unparsed(self):
+        # '500 calories' outside the span has the right VALUE (500) but
+        # the wrong unit-kind (calories, not distance) -- kind mismatch
+        # must reject, not silently match on the number alone.
+        text = "500m, 1 minute rest, 500m\nthen 500 calories"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_variable_chain_repeat_cue_n_rounds_unparsed(self):
+        text = "500m, 1 minute rest, 500m\n5 rounds"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_variable_chain_repeat_cue_twice_unparsed(self):
+        text = "500m, 1 minute rest, 500m\nDo it twice"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_variable_chain_repeat_cue_leading_rounds_unparsed(self):
+        text = "Row 2 rounds\n500m, 1 minute rest, 500m"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_variable_chain_duplicate_lines_ambiguous_unparsed(self):
+        # Two identical chain lines: ambiguous between "the same workout
+        # restated" and "do it twice" (an outer-repeat this spec cannot
+        # express) -- refusing is safer than guessing either way.
+        text = "500m, 1 minute rest, 500m\n500m, 1 minute rest, 500m"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_variable_chain_leading_cue_finish_with_unparsed(self):
+        # "Finish with 500m" -- a lead-in word other than a bare article
+        # right before the FIRST outside work mention means a tacked-on
+        # extra piece, not a restatement, even though the in-order
+        # subsequence check alone would have had room for one more 500m.
+        text = "500m, 1 minute rest, 500m\nFinish with 500m"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_variable_chain_leading_cue_then_unparsed(self):
+        text = "1k, 1 minute rest, 1k\nthen 1k"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_variable_chain_leading_cue_then_cooldown_unparsed(self):
+        text = "2000m/3 minutes rest/1000m/2 minutes rest/500m\nthen 2000m cool down"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_variable_chain_leading_cue_then_easy_unparsed(self):
+        # '10 minutes easy' isn't unambiguously a rest mention ('easy'
+        # is used for both work and rest elsewhere in this module), so
+        # it's treated as the first outside WORK mention -- and it has
+        # a 'then' right before it.
+        text = "3000m, 3 minutes rest, 10 minutes work\nthen 10 minutes easy"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_variable_chain_leading_cue_comma_unparsed(self):
+        # A whitelist, not a blacklist: any lead-in word other than a
+        # bare article rejects, no matter how it's punctuated.
+        text = "500m, 1 minute rest, 500m\nThen, 500m"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_variable_chain_leading_cue_next_dash_unparsed(self):
+        text = "500m, 1 minute rest, 500m\nNext - 500m"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_variable_chain_leading_cue_then_another_unparsed(self):
+        text = "500m, 1 minute rest, 500m\nThen another 500m"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_variable_chain_leading_cue_afterwards_unparsed(self):
+        text = "500m, 1 minute rest, 500m\nAfterwards 500m"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_variable_chain_leading_cue_plus_unparsed(self):
+        text = "500m, 1 minute rest, 500m\nPlus 500m"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_variable_chain_leading_cue_and_another_unparsed(self):
+        text = "500m, 1 minute rest, 500m\nand another 500m"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_variable_chain_leading_cue_rest_then_and_more_unparsed(self):
+        # The rest mention ('1 minute rest') is skipped when hunting for
+        # the first WORK mention, but the 'and' directly before '500m'
+        # still isn't a bare article -- reject.
+        text = "500m, 1 minute rest, 500m\nThen 1 minute rest and 500m more"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_variable_chain_rest_cued_lead_in_before_article_accepted(self):
+        # A preceding rest mention (cued 'rest') plus its own connecting
+        # words don't matter -- only what's directly adjacent to the
+        # first WORK mention counts, and here that's a bare 'a'.
+        text = (
+            "3000m, 3 minutes rest, 10 minutes work\n"
+            "Then 3 minutes rest before a 10 minute piece"
+        )
+        s = spec.parse_spec(text, "All Machines")
+        self.assertEqual(s["kind"], "intervals_variable")
+        self.assertEqual(len(s["intervals"]), 2)
 
 
 class ParseSpecLeftoverCueGuardSinglesTest(unittest.TestCase):

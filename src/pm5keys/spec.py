@@ -731,36 +731,96 @@ def _match_equal_work_and_rest(text: str):
 
 
 # --- Variable rest sequences: "2000m/3 minutes rest/1000m/2 minutes
-# rest/500m", "3000m, 3 minutes rest, 10 minutes work" -----------------------
+# rest/500m", "3000m, 3 minutes rest, 10 minutes work", and arbitrarily
+# long comma- or slash-separated chains of the same shape -------------------
 
 _SEGMENT_SPLIT_RE = re.compile(r"\s*/\s*")
+_COMMA_SEGMENT_SPLIT_RE = re.compile(r"\s*,\s*")
+
+# Optional trailing qualifier on a WORK leg -- never changes what the leg
+# means, just confirms it (position decides work vs rest).
+_WORK_QUALIFIER_ALT = (
+    r"(?:warm-up|warm up|warmup|cool-down|cool down|cooldown"
+    r"|work|hard|easy|light|steady|on|row)"
+)
+# Required cue on a REST leg -- a rest-position leg without one of these
+# fails the whole chain rather than being guessed at.
+_REST_CUE_ALT = r"(?:rest|easy|light|off|recovery|paddle)"
+
+_WORK_QUALIFIER_SUFFIX_RE = re.compile(
+    r"^(?P<unit>.*?)\s+\b" + _WORK_QUALIFIER_ALT + r"\b\.?$", re.IGNORECASE
+)
+_REST_CUE_SUFFIX_RE = re.compile(
+    r"^(?P<dur>.*?)\s+\b" + _REST_CUE_ALT + r"\b\.?$", re.IGNORECASE
+)
+_REST_DURATION_RE = re.compile(
+    r"^\s*(?:(\d{1,3}):(\d{2})|:(\d{1,2})|("
+    + _NUM_RE
+    + r")\s*("
+    + _MIN_UNIT
+    + r"|"
+    + _SEC_UNIT
+    + r"))\s*$",
+    re.IGNORECASE,
+)
+
+
+def _parse_variable_work_leg(seg: str):
+    """Parse a WORK-position leg: any _parse_work_chunk unit, optionally
+    followed by a qualifier word/phrase. A leg that isn't a recognised
+    unit (once an optional qualifier is stripped) -- including one that
+    says rest/off/recovery, none of which are valid qualifiers -- fails."""
+    seg = seg.strip()
+    if not seg:
+        return None
+    m = _WORK_QUALIFIER_SUFFIX_RE.match(seg)
+    if m:
+        unit_text = m.group("unit")
+    else:
+        unit_text = seg[:-1].rstrip() if seg.endswith(".") else seg
+    return _parse_work_chunk(unit_text)
+
+
+def _parse_variable_rest_leg(seg: str):
+    """Parse a REST-position leg: a duration (N min/sec, M:SS, or bare
+    :SS) followed by a REQUIRED rest cue. Missing the cue fails the leg
+    (and so the whole chain) rather than guessing."""
+    seg = seg.strip()
+    if not seg:
+        return None
+    m = _REST_CUE_SUFFIX_RE.match(seg)
+    if not m:
+        return None
+    dm = _REST_DURATION_RE.match(m.group("dur"))
+    if not dm:
+        return None
+    if dm.group(1) is not None:
+        return _mmss_to_seconds(dm.group(1), dm.group(2))
+    if dm.group(3) is not None:
+        return _to_int(dm.group(3))
+    return _duration_words_to_seconds(dm.group(4), dm.group(5))
 
 
 def _try_parse_variable_chain(segments):
     """segments: list of strings alternating work/rest, where rest
-    segments end in 'rest' (or similar). Build intervals_variable if it
+    segments carry a required rest cue. Build intervals_variable if it
     strictly alternates work, rest, work, rest, ..., work (odd length,
-    starting and ending with work)."""
+    >= 3 items, starting and ending with work)."""
     if len(segments) < 3 or len(segments) % 2 == 0:
         return None
     works = []
     rests = []
     for i, seg in enumerate(segments):
-        seg = seg.strip()
         if i % 2 == 0:
-            w = _parse_work_chunk(seg)
+            w = _parse_variable_work_leg(seg)
             if w is None:
                 return None
             works.append(w)
         else:
-            m = re.match(
-                r"^(" + _NUM_RE + r")\s*(" + _MIN_UNIT + r"|" + _SEC_UNIT + r")\s*rest\.?$",
-                seg,
-                re.IGNORECASE,
-            )
-            if not m:
+            r = _parse_variable_rest_leg(seg)
+            if r is None:
                 return None
-            rests.append(_duration_words_to_seconds(m.group(1), m.group(2)))
+            rests.append(r)
     intervals = []
     for i, w in enumerate(works):
         r = rests[i] if i < len(rests) else 0
@@ -768,51 +828,339 @@ def _try_parse_variable_chain(segments):
     return _finalize(None, None, intervals=intervals)
 
 
-_DIST_SEGMENT = r"[\d,]+(?:\.\d+)?\s*(?:k\b|m\b|meters?\b|meter\b)"
-_REST_SEGMENT = r"" + _NUM_RE + r"\s*(?:" + _MIN_UNIT + r"|" + _SEC_UNIT + r")\s*rest\.?"
+# Permissive leg shape used only to find candidate chain spans in the
+# text: any work unit, optionally followed by a single qualifier-or-cue
+# word/phrase (the position-aware, strict checks above decide whether
+# each leg is actually valid once the chain is split).
+_CHAIN_UNIT_ALT = (
+    r"(?:\d{1,3}:\d{2}"  # mm:ss
+    r"|:\d{1,2}"  # bare :ss
+    r"|[\d,]+(?:\.\d+)?\s*(?:k\b|m\b|meters?\b|meter\b)"  # distance
+    + r"|" + _NUM_RE + r"\s*" + _MIN_UNIT  # N minutes
+    + r"|" + _NUM_RE + r"\s*" + _SEC_UNIT  # N seconds
+    + r"|" + _NUM_RE + r"\s*" + _CAL_UNIT  # N calories
+    + r")"
+)
+_CHAIN_TRAILER_ALT = (
+    r"\b(?:warm-up|warm up|warmup|cool-down|cool down|cooldown"
+    r"|work|hard|easy|light|steady|on|row"
+    r"|rest|off|recovery|paddle)\b"
+)
+_CHAIN_LEG_RE_STR = _CHAIN_UNIT_ALT + r"(?:\s+" + _CHAIN_TRAILER_ALT + r")?"
 
+# Full-text consumption, not just "fills a line": parse_spec hands every
+# matcher title + "\n" + description as one string, and title/description
+# routinely restate each other (title: the bare chain; description: the
+# same chain retold in prose, e.g. "3000m, 3 minutes rest, 10 minutes
+# work" / "A 3000m work interval, followed by 3 minutes rest. Then a 10
+# minute work interval.") -- every other matcher in this module tolerates
+# that restatement by matching only the defining fragment and trusting
+# _leftover_cue_guard, not by demanding the whole raw text be nothing but
+# the match. A literal whole-string fullmatch was tried here first and
+# rejects that convention outright (it fails all of the pre-existing
+# restatement-style tests, which have narrative descriptions the chain
+# pattern itself can never match), so it is not what "full text
+# consumption" means for this matcher.
+#
+# What full consumption DOES need to rule out (the actual bug): a chain
+# that only fills ONE LINE while a SIBLING line carries real, distinct
+# workout content that was silently dropped -- a leading "3 x" line that
+# turns the chain into an outer-repeat count instead, a trailing "then
+# 4 x 250m" cool-down/extra block, a bare "then 2000m" leftover leg. The
+# fix below keeps the existing per-line anchor (^...$, MULTILINE -- it
+# already correctly rejects same-line leading/trailing junk such as
+# "then do 500m, 1 minute rest, 500m" or "... and then some") and adds
+# THREE checks:
+#
+#   (a) REPEAT CUE, anywhere outside the matched span: "N x"/"N X"/"N×",
+#       "N rounds"/"N sets"/"N times" (N a digit or number-word),
+#       "twice", "thrice", "repeat", "rounds of", "sets of". Always
+#       rejects, regardless of what N is or whether it matches a chain
+#       value -- it means the chain is (or may be) the body of an
+#       outer-repeat construct that belongs to a different matcher, or
+#       an explicit "do the whole thing again" cue, neither of which
+#       this matcher may guess at. This is what makes "3 x\n500m, 1
+#       minute rest, 500m", "...\nThen 4 x 250m", "...\n5 rounds",
+#       "...\nDo it twice" and "Row 2 rounds\n..." fall through/reject.
+#   (b) AMBIGUOUS DUPLICATE CANDIDATE: if this separator kind (comma or
+#       slash) finds MORE THAN ONE independent full-line chain candidate
+#       anywhere in the text, refuse all of them for that kind rather
+#       than picking one. Two identical chain lines back to back ("500m,
+#       1 minute rest, 500m" twice) are exactly as consistent with "the
+#       same workout, restated" as with "do it twice" -- an outer-repeat
+#       meaning this spec has no way to express -- so guessing either
+#       reading would be guessing at something we cannot tell apart.
+#       Genuine prose restatement is never itself comma/slash-chain
+#       shaped, so it never trips this.
+#   (c) RESTATEMENT-SHAPE WHITELIST (not a cue-word blacklist -- an
+#       open-ended list of "bad" lead-in words is whack-a-mole; this
+#       checks the SHAPE a genuine restatement always has instead).
+#       Text outside the span is acceptable only if BOTH hold:
+#
+#       1. LEAD-IN on the first outside WORK mention: find the first
+#          unit-bearing token outside the span that is not unambiguously
+#          a rest mention (a rest-only cue -- rest/off/recovery/paddle,
+#          and not also a work qualifier -- makes a token a rest mention
+#          and it is skipped when hunting for this "first" one; see
+#          _is_rest_mention/_first_work_mention). Whatever comes right
+#          before that first WORK mention, up to the nearest sentence
+#          boundary (start of text, after "\n", or after one of ".!?:;")
+#          or all the way back to the start of the text if there is no
+#          boundary, must be EITHER just whitespace/punctuation, OR end
+#          in exactly one bare article word ("a"/"an"/"the") -- what
+#          comes before that article does not matter, since a genuine
+#          restatement's own earlier content (an already-matched rest
+#          mention, "A 2000m interval, followed by three minutes rest.
+#          Then a 10 minute work interval." -- the "Then a" before this
+#          SECOND leg) is exactly as legitimate as no lead-in at all.
+#          Any OTHER word directly before the first work mention (then,
+#          next, plus, and, another, afterwards, finish, or literally
+#          anything that isn't nothing/punctuation/a single article)
+#          rejects -- this is what makes "Finish with 500m", "then 1k",
+#          "then 2000m cool down", "then 10 minutes easy", "Then, 500m",
+#          "Next - 500m", "Then another 500m", "Afterwards 500m", "Plus
+#          500m", "and another 500m" and "Then 1 minute rest and 500m
+#          more" all reject, while "...followed by 3 minutes rest
+#          before a 10 minute piece" (rest mention cued, first WORK
+#          mention preceded only by "a") accepts.
+#       2. IN-ORDER SUBSEQUENCE: the chain's own work/rest legs form a
+#          token sequence (work1, rest1, work2, rest2, ..., workN;
+#          rest_i omitted where 0) of (kind, value) pairs -- kind is
+#          "distance" (m/k/km/meters/metres), "time" (min/sec/s/M:SS/
+#          :SS, normalised to seconds) or "cal", matched purely on
+#          (kind, value), no role. Every unit-bearing token outside the
+#          span, in text order (work and rest mentions both -- digits or
+#          number-words all count, since _NUM_RE/_to_int already
+#          normalise them; a bare number with no unit, "Day 2", "Week
+#          3", is never unit-bearing and is ignored), must match some
+#          chain-sequence token AFTER the one the previous outside token
+#          matched (each chain token usable at most once, greedy
+#          leftmost assignment). Any outside mention that cannot be
+#          matched to a later, unconsumed chain token rejects -- this is
+#          what makes a description that mentions a value more times, or
+#          out of order, than the chain itself does reject, while 1-for-1
+#          in-order restatement -- including a stray unit-less "Day 2 of
+#          the challenge" -- always has room and is accepted.
+#
+# Newline-in-separator decision: the inter-leg separators ("\s*,\s*" /
+# "\s*/\s*") and the optional qualifier's leading "\s+" all use \s, which
+# already matches "\n". That is left as-is on purpose: a single logical
+# chain that merely word-wraps mid-list onto the next physical line
+# (e.g. a title stored as "500m, 1 minute\nrest, 500m") should still
+# parse as one chain. This is safe together with the per-line anchor
+# above because Python's re "^"/"$" in MULTILINE mode anchor to the
+# start/end of the whole subject too when a candidate's internal "\s"
+# happens to swallow a "\n" -- the candidate then simply spans more than
+# one physical line as a single match, and the checks above still run
+# against whatever text is left outside that (possibly multi-line) match.
+_COMMA_CHAIN_CANDIDATE_RE = re.compile(
+    r"^[ \t]*"
+    + _CHAIN_LEG_RE_STR
+    + r"(?:\s*,\s*"
+    + _CHAIN_LEG_RE_STR
+    + r"){2,}[ \t]*\.?[ \t]*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+_SLASH_CHAIN_CANDIDATE_RE = re.compile(
+    r"^[ \t]*"
+    + _CHAIN_LEG_RE_STR
+    + r"(?:\s*/\s*"
+    + _CHAIN_LEG_RE_STR
+    + r"){2,}[ \t]*\.?[ \t]*$",
+    re.IGNORECASE | re.MULTILINE,
+)
 
-def _match_slash_variable_rest_chain(text: str):
-    # Look for a slash-separated run alternating distance segments with
-    # "N minutes/seconds rest" segments, e.g. "2000m/3 minutes
-    # rest/1000m/2 minutes rest/500m": distance, (rest, distance)*.
-    for candidate in re.finditer(
-        r"(?:" + _DIST_SEGMENT + r")"
-        r"(?:\s*/\s*(?:" + _REST_SEGMENT + r"|" + _DIST_SEGMENT + r"))+",
-        text,
-        re.IGNORECASE,
-    ):
-        segs = _SEGMENT_SPLIT_RE.split(candidate.group(0))
-        result = _try_parse_variable_chain(segs)
-        if result is not None:
-            return result
-    return None
-
-
-# "3000m, 3 minutes rest, 10 minutes work" (comma separated, explicit
-# 'work' suffix on later durations).
-_COMMA_VARIABLE_CHAIN_RE = re.compile(
-    r"([\d,]+(?:\.\d+)?\s*(?:k\b|m\b|meters?\b|meter\b))\s*,\s*"
-    r"(" + _NUM_RE + r")\s*(" + _MIN_UNIT + r")\s*rest\s*,\s*"
-    r"(" + _NUM_RE + r")\s*(" + _MIN_UNIT + r")\s*work",
+# (a) Repeat cues: "N x"/"N X"/"N×", "N rounds"/"N sets"/"N times", or a
+# bare "twice"/"thrice"/"repeat"/"rounds of"/"sets of".
+_REPEAT_CUE_RE = re.compile(
+    r"\b(?:"
+    + _NUM_RE
+    + r"\s*[xX×]\b"
+    + r"|"
+    + _NUM_RE
+    + r"\s*rounds?\b"
+    + r"|"
+    + _NUM_RE
+    + r"\s*sets?\b"
+    + r"|"
+    + _NUM_RE
+    + r"\s*times\b"
+    + r"|twice\b"
+    + r"|thrice\b"
+    + r"|repeat\b"
+    + r"|rounds?\s+of\b"
+    + r"|sets?\s+of\b"
+    + r")",
     re.IGNORECASE,
 )
 
+# (c) A number+UNIT token: digits or a number-word immediately followed
+# by a recognised unit, or an M:SS / :SS time. Mirrors the unit
+# alternations used elsewhere in this module (_MIN_UNIT/_SEC_UNIT/
+# _CAL_UNIT/distance units) so "unit-bearing" means exactly what the
+# work/rest leg parsers themselves accept.
+_UNIT_BEARING_RE = re.compile(
+    r"\b(?P<num>"
+    + _NUM_RE
+    + r"(?:\.\d+)?)\s*(?P<unit>k\b|km\b|m\b|meters?\b|metres?\b|"
+    + _MIN_UNIT
+    + r"\b|"
+    + _SEC_UNIT
+    + r"\b|"
+    + _CAL_UNIT
+    + r"\b)"
+    r"|(?P<mmss>\d{1,3}:\d{2})\b"
+    r"|(?P<bare_ss>:\d{1,2})\b",
+    re.IGNORECASE,
+)
 
-def _match_comma_variable_chain(text: str):
-    m = _COMMA_VARIABLE_CHAIN_RE.search(text)
-    if not m:
-        return None
-    w1 = _parse_work_chunk(m.group(1))
-    if w1 is None:
-        return None
-    r1 = _duration_words_to_seconds(m.group(2), m.group(3))
-    w2_s = _to_int(m.group(4)) * 60
-    intervals = [
-        {"work": w1, "rest_s": r1},
-        {"work": {"time_s": w2_s}, "rest_s": 0},
-    ]
-    return _finalize(None, None, intervals=intervals)
+# A qualifier word immediately following a unit-bearing token, used only
+# to read off whether that token is unambiguously a rest mention (check
+# (c).1's "skip rest mentions"). "easy"/"light" appear in both lists on
+# purpose -- they are genuinely ambiguous elsewhere in this module too.
+_TRAILING_REST_ROLE_RE = re.compile(r"^\s*" + _REST_CUE_ALT + r"\b", re.IGNORECASE)
+_TRAILING_WORK_ROLE_RE = re.compile(r"^\s*" + _WORK_QUALIFIER_ALT + r"\b", re.IGNORECASE)
+
+# Check (c).1's lead-in test: the text immediately before the first
+# outside WORK mention is acceptable if it is (via re.search, so this
+# matches regardless of what -- if anything -- comes further back)
+# either the very start of the text, a sentence-boundary punctuation
+# mark, or a single bare article word, followed only by whitespace up
+# to the mention. This is a whitelist, not a blacklist: everything not
+# matching this shape rejects, so no cue word needs to be named.
+_LEAD_IN_OK_RE = re.compile(r"(?:\A|[\n.!?:;]|\b(?:a|an|the)\b)\s*\Z", re.IGNORECASE)
+
+
+def _unit_kind_value(unit: str, num: str) -> tuple:
+    """(kind, value) for a matched _UNIT_BEARING_RE 'num'+'unit' pair,
+    with time/distance normalised (minutes/k/km -> seconds/metres)."""
+    unit_l = unit.lower()
+    n = _to_int(num)
+    if unit_l in ("k", "km"):
+        return ("distance", int(round(n * 1000)))
+    if unit_l == "m" or unit_l.startswith("meter") or unit_l.startswith("metre"):
+        return ("distance", n)
+    if unit_l.startswith("min"):
+        return ("time", n * 60)
+    if unit_l.startswith("sec") or unit_l == "s":
+        return ("time", n)
+    return ("cal", n)
+
+
+def _is_rest_mention(kind: str, trailer: str) -> bool:
+    """True only if a unit-bearing token is UNAMBIGUOUSLY a rest mention
+    (a rest-only cue follows and no work qualifier also does) -- used to
+    skip rest mentions when hunting for the first WORK mention outside
+    the span (check (d))."""
+    if kind != "time":
+        return False
+    is_rest = bool(_TRAILING_REST_ROLE_RE.match(trailer))
+    is_work = bool(_TRAILING_WORK_ROLE_RE.match(trailer))
+    return is_rest and not is_work
+
+
+def _first_work_mention(rest_of_text: str):
+    """The first _UNIT_BEARING_RE match in rest_of_text that is not
+    unambiguously a rest mention, or None (see check (d))."""
+    for m in _UNIT_BEARING_RE.finditer(rest_of_text):
+        if m.group("num") is not None:
+            kind, _value = _unit_kind_value(m.group("unit"), m.group("num"))
+        else:
+            kind = "time"  # mm:ss / bare :ss are always time
+        if _is_rest_mention(kind, rest_of_text[m.end() :]):
+            continue
+        return m
+    return None
+
+
+def _chain_token_sequence(result: dict) -> list:
+    """(kind, value) for every leg of an already-built intervals_variable
+    result, in order: work1, rest1, work2, rest2, ..., workN (a leg's
+    rest is omitted when 0, i.e. always for the last leg) -- see check
+    (c).2 above."""
+    seq = []
+    for iv in result["intervals"]:
+        work = iv["work"]
+        if "distance_m" in work:
+            seq.append(("distance", work["distance_m"]))
+        elif "time_s" in work:
+            seq.append(("time", work["time_s"]))
+        else:
+            seq.append(("cal", work["calories"]))
+        if iv["rest_s"]:
+            seq.append(("time", iv["rest_s"]))
+    return seq
+
+
+def _outside_mention_tokens(rest_of_text: str) -> list:
+    """(kind, value) for every unit-bearing token in rest_of_text, in
+    text order -- see check (c).2 above."""
+    tokens = []
+    for m in _UNIT_BEARING_RE.finditer(rest_of_text):
+        if m.group("num") is not None:
+            tokens.append(_unit_kind_value(m.group("unit"), m.group("num")))
+        elif m.group("mmss") is not None:
+            mm, ss = m.group("mmss").split(":")
+            tokens.append(("time", int(mm) * 60 + int(ss)))
+        else:
+            tokens.append(("time", int(m.group("bare_ss").lstrip(":"))))
+    return tokens
+
+
+def _is_in_order_subsequence(mentions: list, chain_seq: list) -> bool:
+    """True iff mentions is an in-order subsequence of chain_seq, each
+    chain_seq token usable at most once (greedy leftmost assignment --
+    see check (c).2 above)."""
+    pointer = 0
+    for tok in mentions:
+        for j in range(pointer, len(chain_seq)):
+            if chain_seq[j] == tok:
+                pointer = j + 1
+                break
+        else:
+            return False
+    return True
+
+
+def _match_variable_chain(text: str):
+    """One separator kind per chain (comma or slash, never mixed):
+    split a candidate run into an odd-length alternating work, rest,
+    work, ... list. Full consumption of the input text is enforced by
+    the checks in the comment above this matcher's regexes: a repeat
+    cue outside the span, more than one independent chain candidate of
+    the same kind, or text outside the span that doesn't have the
+    restatement shape (a bad lead-in on the first WORK mention, or
+    mentions that aren't an in-order subsequence of the chain's own
+    tokens), all reject. No leg-count cap."""
+    for candidate_re, split_re in (
+        (_COMMA_CHAIN_CANDIDATE_RE, _COMMA_SEGMENT_SPLIT_RE),
+        (_SLASH_CHAIN_CANDIDATE_RE, _SEGMENT_SPLIT_RE),
+    ):
+        matches = list(candidate_re.finditer(text))
+        if len(matches) != 1:
+            continue
+        candidate = matches[0]
+        candidate_text = candidate.group(0).strip()
+        if candidate_text.endswith("."):
+            candidate_text = candidate_text[:-1].rstrip()
+        segs = split_re.split(candidate_text)
+        result = _try_parse_variable_chain(segs)
+        if result is None:
+            continue
+        rest_of_text = text[: candidate.start()] + text[candidate.end() :]
+        if _REPEAT_CUE_RE.search(rest_of_text):
+            continue
+        first_work = _first_work_mention(rest_of_text)
+        if first_work is not None and not _LEAD_IN_OK_RE.search(
+            rest_of_text[: first_work.start()]
+        ):
+            continue
+        if not _is_in_order_subsequence(
+            _outside_mention_tokens(rest_of_text), _chain_token_sequence(result)
+        ):
+            continue
+        return result
+    return None
 
 
 # --- Minute pyramids without slashes: "1 min, 2 min, 3 min, 4 min, 3
@@ -957,8 +1305,7 @@ def _apply_bikeerg_override(spec: dict, overrides) -> dict:
 # Matchers tried in priority order (most specific first).
 _MATCHERS = [
     _match_equal_work_and_rest,
-    _match_comma_variable_chain,
-    _match_slash_variable_rest_chain,
+    _match_variable_chain,
     _match_comma_minute_pyramid,
     _match_slash_minutes_with_rest,
     _match_slash_distance_with_rest,
