@@ -9,3 +9,9 @@ eval_cache/
 .pii-patterns.local
 web/dist/
 web/version.js
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.beads/proxieddb/
