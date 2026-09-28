@@ -605,6 +605,17 @@ class ParseSpecNegativeTest(unittest.TestCase):
     def test_five_x_500m_still_unparsed(self):
         self.assertIsNone(spec.parse_spec("5 x 500m", "All Machines"))
 
+    def test_warmup_fixed_intervals_cooldown_unparsed(self):
+        # pm5-7bk.2 bug: a fixed intervals_time match ("10 x 1 min hard
+        # / 1 min light") must not silently drop the warm-up/cool-down
+        # legs bracketing it.
+        text = "7 min warm-up, 10 x 1 min hard / 1 min light, 3 min cool-down"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
+    def test_warmup_then_intervals_then_cooldown_unparsed(self):
+        text = "warm up 7 minutes, then 10 x 1:00 on / 1:00 off, then 3 minutes cool down"
+        self.assertIsNone(spec.parse_spec(text, "All Machines"))
+
     def test_variable_chain_rest_leg_without_cue_unparsed(self):
         # '500m, 2 minutes, 500m' -- the middle (rest-position) leg has
         # no rest cue, so the whole chain must fail rather than guess.
@@ -889,6 +900,42 @@ class ParseSpecLeftoverCueGuardSinglesTest(unittest.TestCase):
         s = spec.parse_spec(text, "RowErg and SkiErg")
         self.assertEqual(s["kind"], "single_distance")
         self.assertEqual(s["work"], {"distance_m": 1000})
+
+
+class ParseSpecLeftoverCueGuardIntervalsTest(unittest.TestCase):
+    """pm5-7bk.2: the leftover-cue guard also applies to fixed
+    intervals_* and intervals_variable results, not just singles -- a
+    warm-up/cool-down/'then' cue co-occurring with a number+unit work
+    token in the same sentence signals an extra leg the interval match
+    didn't capture and rejects the whole spec. It stays sentence-scoped
+    (a bare cue word with no accompanying duration in the same sentence
+    is not disqualifying), and it does not fire on the matched
+    interval's own rest-word suffix (e.g. 'rest' in '8 x 500m, 2
+    minutes rest' -- see _INTERVAL_LEFTOVER_CUE_WORDS_RE in spec.py)."""
+
+    def test_fixed_interval_slash_still_parses_no_regression(self):
+        s = spec.parse_spec("10 x 1 min / 1 min easy", "All Machines")
+        self.assertEqual(s["kind"], "intervals_time")
+        self.assertEqual(s["work"], {"time_s": 60})
+        self.assertEqual(s["rest_s"], 60)
+        self.assertEqual(s["count"], 10)
+
+    def test_fixed_interval_with_rest_word_still_parses_no_regression(self):
+        s = spec.parse_spec("8 x 500m, 2 minutes rest", "All Machines")
+        self.assertEqual(s["kind"], "intervals_distance")
+        self.assertEqual(s["work"], {"distance_m": 500})
+        self.assertEqual(s["rest_s"], 120)
+        self.assertEqual(s["count"], 8)
+
+    def test_cue_word_without_accompanying_number_still_parses(self):
+        # A cue word alone, with no number+unit token in the same
+        # sentence, is not disqualifying -- the guard needs both.
+        text = "8 x 500m, 2 minutes rest\nWarm up well first."
+        s = spec.parse_spec(text, "All Machines")
+        self.assertEqual(s["kind"], "intervals_distance")
+        self.assertEqual(s["work"], {"distance_m": 500})
+        self.assertEqual(s["rest_s"], 120)
+        self.assertEqual(s["count"], 8)
 
 
 class ParseSpecSentenceScopedCueGuardProbeTest(unittest.TestCase):

@@ -1375,7 +1375,35 @@ _OUTER_REPEAT_OF_RE = re.compile(r"\b(" + _NUM_RE + r")\s*(?:rounds?|sets?)\s+of
 # Ranking..."), so a whole-text word search alone is not reliable.
 _REST_CUE_WORDS_RE = re.compile(
     r"\b(rest|easy|off|recovery|recover|light|between|on/off|then"
-    r"|followed by|warmup|warm up|cool down)\b",
+    r"|followed by|warm-up|warm up|warmup|cool-down|cool down|cooldown)\b",
+    re.IGNORECASE,
+)
+
+# Structural leftover cues that signal an outside warm-up/cool-down/
+# chained leg a matched fixed *interval* span cannot represent --
+# narrower than _REST_CUE_WORDS_RE above (deliberately excludes
+# rest/easy/light/off/recovery/between, which legitimately occur
+# *inside* an interval matcher's own captured rest-word suffix, e.g.
+# "8 x 500m, 2 minutes rest"; warm-up/cool-down/then never legitimately
+# occur inside a fixed-interval matcher's own captured span). Only
+# disqualifying when a cue word here co-occurs with a number+unit work
+# token in the same sentence -- see _sentence_has_interval_leftover_cue
+# below.
+_INTERVAL_LEFTOVER_CUE_WORDS_RE = re.compile(
+    r"\b(warm-up|warm up|warmup|cool-down|cool down|cooldown|then)\b",
+    re.IGNORECASE,
+)
+
+# Same idea, restricted to warm-up/cool-down only (no "then"), for
+# intervals_variable results. The intervals_variable-producing matchers
+# (ladders/pyramids as well as the variable chain) only match the
+# concise title-line shape and routinely trust a prose *description*
+# that restates the same ladder with "... then 1000m, then 500m." --
+# unlike warm-up/cool-down, a bare "then" is not a reliable signal of
+# an untracked extra leg here, so it is intentionally left out of this
+# narrower set to avoid rejecting that legitimate restatement style.
+_VARIABLE_LEFTOVER_CUE_WORDS_RE = re.compile(
+    r"\b(warm-up|warm up|warmup|cool-down|cool down|cooldown)\b",
     re.IGNORECASE,
 )
 
@@ -1459,9 +1487,35 @@ def _sentence_disqualifies_single(sentence: str) -> bool:
     return False
 
 
-def _leftover_cue_guard(kind: str, clean_text: str) -> bool:
+def _sentence_has_interval_leftover_cue(sentence: str, cue_re: re.Pattern) -> bool:
+    """Return True if this one sentence (from clean_text, split on
+    [.!?\\n]) carries a cue word matched by cue_re together with a
+    number+unit work token -- e.g. "7 min warm-up", "then 3 minutes
+    cool down". A bare cue word alone, with no accompanying
+    duration/distance in the same sentence (e.g. "Warm up well
+    first."), is not disqualifying -- mirrors the co-occurrence rule in
+    _sentence_disqualifies_single above, but scoped to the narrower
+    _INTERVAL_LEFTOVER_CUE_WORDS_RE / _VARIABLE_LEFTOVER_CUE_WORDS_RE
+    cue sets (see their comments for why rest/easy/light/off/
+    recovery/between/then are excluded)."""
+    if not cue_re.search(sentence):
+        return False
+    return bool(_NUM_UNIT_TOKEN_RE.search(sentence))
+
+
+def _leftover_cue_guard(kind: str, clean_text: str, from_chain_matcher: bool = False) -> bool:
     """Return True if clean_text still carries a cue the matched kind
-    cannot represent -- i.e. the spec must be discarded (never guess)."""
+    cannot represent -- i.e. the spec must be discarded (never guess).
+
+    from_chain_matcher: True when the spec came from
+    _match_variable_chain. That matcher already enforces its own
+    restatement-shape rule on text outside its matched span (see the
+    long comment above it), so the generic sentence-scoped
+    warm-up/cool-down/then check below is skipped for its results --
+    applying it on top would reject the chain matcher's own legitimate
+    prose restatements (e.g. "A 6 minute warm-up, then ten 1 minute
+    hard efforts ..., then a 3 minute cool-down.") that say in prose
+    exactly what the chain already captured."""
     count_hits = _COUNT_CUE_RE.findall(clean_text)
     has_count_cue = bool(count_hits) or bool(_PLURAL_NUM_CUE_RE.search(clean_text))
 
@@ -1482,7 +1536,17 @@ def _leftover_cue_guard(kind: str, clean_text: str) -> bool:
         # remains -- a variable-interval description legitimately mentions
         # its own piece count in prose (e.g. "Seven intervals in a
         # pyramid of ...").
-        return bool(_OUTER_REPEAT_OF_RE.search(clean_text))
+        if _OUTER_REPEAT_OF_RE.search(clean_text):
+            return True
+        if from_chain_matcher:
+            return False
+        # A leftover warm-up/cool-down cue co-occurring with a
+        # number+unit token in the same sentence signals an extra leg
+        # this variable-interval match didn't actually capture.
+        for sentence in _SENTENCE_SPLIT_RE.split(clean_text):
+            if _sentence_has_interval_leftover_cue(sentence, _VARIABLE_LEFTOVER_CUE_WORDS_RE):
+                return True
+        return False
 
     # Fixed intervals_* (intervals_distance/time/calorie): allowed as long
     # as no outer-repeat cue remains that isn't a restatement of the same
@@ -1500,6 +1564,15 @@ def _leftover_cue_guard(kind: str, clean_text: str) -> bool:
     without_followed_by_rest = _FOLLOWED_BY_REST_RE.sub(" ", clean_text)
     if re.search(r"\bthen\b|\bfollowed by\b", without_followed_by_rest, re.IGNORECASE):
         return True
+
+    # A leftover warm-up/cool-down cue (or a 'then' not already caught
+    # above) co-occurring with a number+unit token in the same sentence
+    # signals an extra leg this fixed-interval match didn't capture,
+    # e.g. "7 min warm-up, 10 x 1 min hard / 1 min light, 3 min
+    # cool-down".
+    for sentence in _SENTENCE_SPLIT_RE.split(clean_text):
+        if _sentence_has_interval_leftover_cue(sentence, _INTERVAL_LEFTOVER_CUE_WORDS_RE):
+            return True
 
     return False
 
@@ -1533,9 +1606,11 @@ def parse_spec(text: str, machines: str | None = None) -> dict | None:
     clean = _strip_parenthetical_and_notes(text)
 
     spec = None
+    matched_by = None
     for matcher in _MATCHERS:
         spec = matcher(clean)
         if spec is not None:
+            matched_by = matcher
             break
 
     if spec is None:
@@ -1544,7 +1619,9 @@ def parse_spec(text: str, machines: str | None = None) -> dict | None:
     if spec is None:
         return None
 
-    if _leftover_cue_guard(spec["kind"], clean):
+    if _leftover_cue_guard(
+        spec["kind"], clean, from_chain_matcher=(matched_by is _match_variable_chain)
+    ):
         return None
 
     spec["machine"] = machine
