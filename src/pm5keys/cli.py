@@ -23,7 +23,7 @@ an install hint and exits 2.
 
 CLI:
     pm5keys "<text>" [--llm {auto,none,anthropic,claude-cli}] [--no-llm]
-             [--explain] [--verbose] [--model MODEL]
+             [--explain] [--summary] [--verbose] [--model MODEL]
              [--monitor {pm5,pm3,pm4,both}]
         With no positional argument, the workout text is read from
         stdin. --llm selects which backend the LLM fallback uses
@@ -61,10 +61,18 @@ CLI:
         letter and screen, and whose actions differ only in the
         trailing '(now N)' digit-edit value or the cursor-move
         destination field, are collapsed to '<n>x<press>' (showing the
-        last action's destination/value). With --monitor both,
+        last action's destination/value). For an intervals_variable
+        workout, runs of consecutive legs that press-for-press program
+        identically are additionally collapsed into one '<n>x ...'
+        summary line covering the leg range. With --monitor both,
         --explain prints each monitor's trace under its own 'PM3/PM4:'
-        / 'PM5:' heading. --version prints pm5keys's version and exits
-        0.
+        / 'PM5:' heading. With --summary, a plain-text leg table for
+        the parsed spec is printed before the key-sequence line(s) (one
+        row per leg for intervals_variable, collapsing consecutive
+        identical legs into a range row; one line for fixed intervals
+        or a single piece), followed by a blank line. --summary and
+        --explain compose (table, then key line(s), then explain).
+        --version prints pm5keys's version and exits 0.
 
     Calorie workouts ('single_calorie'/'intervals_calorie' specs) are
     not supported on PM3/PM4 (Concept2's PM3/PM4 monitors have no
@@ -266,6 +274,50 @@ def _action_group_key(action: str):
     return ("other", action)
 
 
+def _compute_press_groups(trace: list) -> list:
+    """Group consecutive presses per the collapsing rule shared by
+    _format_explain and _format_explain_legs: the same press letter and
+    screen, and actions that are identical, or differ only in the
+    trailing '(now N)' digit-edit value or the cursor-move destination
+    field. Returns a list of dicts {'label', 'screen', 'action',
+    'start', 'end'} -- 'start'/'end' are the inclusive trace indices
+    spanned by the group, 'label' is the press (or '<n>x<press>' for a
+    collapsed group), and 'action' is the group's combined/last action
+    (see _format_explain's docstring for the collapsed-value rules)."""
+    raw_groups = []
+    for idx, (press, screen, action) in enumerate(trace):
+        key = (press, screen, _action_group_key(action))
+        if raw_groups and raw_groups[-1]["key"] == key:
+            raw_groups[-1]["actions"].append(action)
+            raw_groups[-1]["end"] = idx
+        else:
+            raw_groups.append({"key": key, "actions": [action], "start": idx, "end": idx})
+
+    groups = []
+    for g in raw_groups:
+        press, screen, group_key = g["key"]
+        count = len(g["actions"])
+        label = press if count == 1 else f"{count}x{press}"
+        last_action = g["actions"][-1]
+        if group_key[0] == "digit_edit" and count > 1:
+            field, sign, _delta, _value = _DIGIT_EDIT_RE.match(last_action).groups()
+            total_delta = sum(int(_DIGIT_EDIT_RE.match(a).group(3)) for a in g["actions"])
+            final_value = _DIGIT_EDIT_RE.match(last_action).group(4)
+            action = f"{field} {sign}{total_delta} (now {final_value})"
+        else:
+            action = last_action
+        groups.append(
+            {
+                "label": label,
+                "screen": screen,
+                "action": action,
+                "start": g["start"],
+                "end": g["end"],
+            }
+        )
+    return groups
+
+
 def _format_explain(trace: list) -> list:
     """Format an explain() trace (list of (press, screen, action)) into
     display lines, collapsing consecutive presses that share the same
@@ -280,39 +332,237 @@ def _format_explain(trace: list) -> list:
     (press, screen, action) triples also collapse under the same rule.
     Column-aligns the press and screen fields using ': ' as the
     separator."""
-    groups = []
-    for press, screen, action in trace:
-        key = (press, screen, _action_group_key(action))
-        if groups and groups[-1][0] == key:
-            groups[-1][1].append(action)
-        else:
-            groups.append([key, [action]])
-
-    labels = []
-    for key, actions in groups:
-        press, screen, group_key = key
-        count = len(actions)
-        label = press if count == 1 else f"{count}x{press}"
-        last_action = actions[-1]
-        if group_key[0] == "digit_edit" and count > 1:
-            field, sign, _delta, _value = _DIGIT_EDIT_RE.match(last_action).groups()
-            total_delta = sum(int(_DIGIT_EDIT_RE.match(a).group(3)) for a in actions)
-            final_value = _DIGIT_EDIT_RE.match(last_action).group(4)
-            action = f"{field} {sign}{total_delta} (now {final_value})"
-        else:
-            action = last_action
-        labels.append((label, screen, action))
-
-    if not labels:
+    groups = _compute_press_groups(trace)
+    if not groups:
         return []
 
-    label_width = max(len(label) for label, _, _ in labels)
-    screen_width = max(len(screen) for _, screen, _ in labels)
+    label_width = max(len(g["label"]) for g in groups)
+    screen_width = max(len(g["screen"]) for g in groups)
 
-    lines = []
-    for label, screen, action in labels:
-        lines.append(f"{label.ljust(label_width)}  {screen.ljust(screen_width)}: {action}")
+    return [
+        f"{g['label'].ljust(label_width)}  {g['screen'].ljust(screen_width)}: {g['action']}"
+        for g in groups
+    ]
+
+
+# Screen name of the Intervals: Variable per-leg type chooser; a press
+# on this screen selecting a type (Time/Distance/Calorie) marks a leg
+# boundary, and the trailing 'E' (finish workout) press on this same
+# screen marks the end of the whole variable-interval workout.
+_VARIABLE_TYPE_CHOOSER_SCREEN = "Intervals: Variable"
+_LEG_START_ACTIONS = {"Time", "Distance", "Calorie"}
+
+
+def _leg_boundaries(trace: list):
+    """Return (starts, finish) for an intervals_variable explain()
+    trace: starts is the list of trace indices marking the start of
+    each leg (the press selecting that leg's type on the 'Intervals:
+    Variable' type-chooser screen), in leg order; finish is the trace
+    index of the trailing 'finish workout' press, or None. starts is []
+    (and finish is None) for a trace with no variable-interval legs at
+    all (i.e. any non-intervals_variable spec)."""
+    starts = []
+    finish = None
+    for i, (_press, screen, action) in enumerate(trace):
+        if screen != _VARIABLE_TYPE_CHOOSER_SCREEN:
+            continue
+        if action in _LEG_START_ACTIONS:
+            starts.append(i)
+        elif action == "finish workout":
+            finish = i
+    return starts, finish
+
+
+def _render_leg_range_line(start_leg: int, end_leg: int, leg_groups: list, intervals: list) -> str:
+    """Render one collapsed summary line for legs start_leg..end_leg
+    (1-based, inclusive), all of which share leg_groups' press-group
+    signature (leg_groups is that shared signature, taken from the
+    first leg in the range)."""
+    count = end_leg - start_leg + 1
+    press_seq = "-".join(g["label"] for g in leg_groups)
+    if (
+        len(leg_groups) == 2
+        and leg_groups[0]["action"] in _LEG_START_ACTIONS
+        and leg_groups[1]["action"] == "confirm"
+    ):
+        # The common case: no digit edits were needed for any leg in
+        # this range (the work/rest values already matched what the
+        # previous leg of this type left behind), so each leg is just
+        # 'select type' -> 'confirm'.
+        type_name = leg_groups[0]["action"]
+        detail = f"legs {start_leg}-{end_leg}"
+        if intervals and 0 <= start_leg - 1 < len(intervals):
+            iv = intervals[start_leg - 1]
+            detail += f", {_format_work(iv['work'])} work"
+            if iv.get("rest_s"):
+                detail += f", rest carries over at {_format_time_mmss(iv['rest_s'])}"
+        return f"{count}x   {press_seq}   Intervals: Variable: {type_name} -> confirm ({detail})"
+
+    desc = "; ".join(f"{g['screen']}: {g['action']}" for g in leg_groups)
+    return f"{count}x   {press_seq}   {desc} (legs {start_leg}-{end_leg})"
+
+
+def _format_explain_legs(trace: list, spec: dict) -> list:
+    """Like _format_explain, but for an intervals_variable trace,
+    additionally collapses runs of consecutive legs whose full
+    press-group signature is identical into one summary line covering
+    the leg range (e.g. '9x   D-E   Intervals: Variable: Time ->
+    confirm (legs 3-11, 1:00 work, rest carries over at 1:00)'), so
+    long variable-interval workouts don't dump one line per press.
+    Non-repeated legs, and the pre-leg chooser presses / trailing
+    'finish workout' press, are formatted exactly as _format_explain
+    would format them. Falls back to _format_explain(trace) unchanged
+    when there are fewer than 2 legs (nothing to collapse) or the
+    trace has no leg boundaries at all (not an intervals_variable
+    trace) -- leg boundaries come from PM5's own explain() trace (the
+    'Intervals: Variable' type-chooser screen marks each leg), so no
+    separate leg-tracking is needed."""
+    starts, finish = _leg_boundaries(trace)
+    if len(starts) < 2 or finish is None:
+        return _format_explain(trace)
+
+    groups = _compute_press_groups(trace)
+    intervals = (spec or {}).get("intervals") or []
+    n_legs = len(starts)
+
+    def leg_of(idx):
+        for k in range(n_legs):
+            lo = starts[k]
+            hi = starts[k + 1] - 1 if k + 1 < n_legs else finish - 1
+            if lo <= idx <= hi:
+                return k + 1
+        return None
+
+    per_leg = {k: [] for k in range(1, n_legs + 1)}
+    other = []
+    for g in groups:
+        leg = leg_of(g["start"])
+        if leg is None:
+            other.append(g)
+        else:
+            per_leg[leg].append(g)
+
+    def sig(k):
+        return tuple((g["label"], g["screen"], g["action"]) for g in per_leg[k])
+
+    ranges = []
+    k = 1
+    while k <= n_legs:
+        j = k
+        while j + 1 <= n_legs and sig(j + 1) == sig(k):
+            j += 1
+        ranges.append((k, j))
+        k = j + 1
+
+    # Column widths are computed only from groups that will actually
+    # render as standalone '<label>  <screen>: <action>' lines (the
+    # collapsed range lines have their own distinct format).
+    standalone = list(other)
+    for start_leg, end_leg in ranges:
+        if end_leg == start_leg:
+            standalone.extend(per_leg[start_leg])
+    label_width = max((len(g["label"]) for g in standalone), default=0)
+    screen_width = max((len(g["screen"]) for g in standalone), default=0)
+
+    def render(g):
+        return f"{g['label'].ljust(label_width)}  {g['screen'].ljust(screen_width)}: {g['action']}"
+
+    header = [g for g in other if g["start"] < starts[0]]
+    trailer = [g for g in other if g["start"] >= finish]
+
+    lines = [render(g) for g in header]
+    for start_leg, end_leg in ranges:
+        if end_leg > start_leg:
+            lines.append(_render_leg_range_line(start_leg, end_leg, per_leg[start_leg], intervals))
+        else:
+            lines.extend(render(g) for g in per_leg[start_leg])
+    lines.extend(render(g) for g in trailer)
     return lines
+
+
+def _format_time_mmss(total_s: int) -> str:
+    """Format a non-negative second count as 'M:SS' (minutes, unpadded;
+    seconds, zero-padded to 2 digits). Minutes are not capped at 59 --
+    e.g. 3660 -> '61:00', matching the mm:ss fields PM5 entry screens
+    themselves use (see pm5_model.py)."""
+    minutes, seconds = divmod(total_s, 60)
+    return f"{minutes}:{seconds:02d}"
+
+
+def _format_work(work: dict) -> str:
+    """Format a WorkoutSpec work dict ({distance_m|time_s|calories: N})
+    for display: 'M:SS' for time, '<N>m' for distance, '<N> cal' for
+    calories."""
+    if "time_s" in work:
+        return _format_time_mmss(work["time_s"])
+    if "distance_m" in work:
+        return f"{work['distance_m']}m"
+    if "calories" in work:
+        return f"{work['calories']} cal"
+    # pragma: no cover -- validate_spec guarantees exactly one of the three
+    raise ValueError(f"unrecognised work dict: {work!r}")
+
+
+def _build_variable_summary_lines(intervals: list) -> list:
+    """Build the --summary leg table for an intervals_variable spec's
+    'intervals' list: a header line ('Workout (M:SS, N legs)' when
+    every leg is time-based, else 'Workout (N legs)'), followed by one
+    row per leg (or per run of consecutive identical legs, collapsed
+    into a single 'start-end ... (xN)' range row). Row columns: leg
+    number/range (padded to 7 columns), work (padded to 10 columns),
+    then 'rest M:SS' or an em dash '—' for a leg with no trailing
+    rest (rest_s == 0; per the WorkoutSpec schema this can only be the
+    final leg)."""
+    n = len(intervals)
+    all_time_based = all("time_s" in iv["work"] for iv in intervals)
+    if all_time_based:
+        total_s = sum(iv["work"]["time_s"] for iv in intervals) + sum(
+            iv["rest_s"] for iv in intervals[:-1]
+        )
+        header = f"Workout ({_format_time_mmss(total_s)}, {n} legs)"
+    else:
+        header = f"Workout ({n} legs)"
+    lines = [header]
+
+    i = 0
+    while i < n:
+        j = i
+        while (
+            j + 1 < n
+            and intervals[j + 1]["work"] == intervals[i]["work"]
+            and intervals[j + 1]["rest_s"] == intervals[i]["rest_s"]
+        ):
+            j += 1
+        start_num, end_num = i + 1, j + 1
+        label = str(start_num) if start_num == end_num else f"{start_num}-{end_num}"
+        work_str = _format_work(intervals[i]["work"])
+        rest_s = intervals[i]["rest_s"]
+        rest_str = "—" if rest_s == 0 else f"rest {_format_time_mmss(rest_s)}"
+        row = f"{label.ljust(7)}{work_str.ljust(10)}{rest_str}"
+        count = end_num - start_num + 1
+        if count > 1:
+            row += f"   (x{count})"
+        lines.append(row)
+        i = j + 1
+
+    return lines
+
+
+def _build_summary_lines(spec: dict) -> list:
+    """Build the --summary output for any parsed WorkoutSpec: the
+    multi-row leg table (see _build_variable_summary_lines) for
+    intervals_variable, one line 'Workout: N x <work> / M:SS rest' for
+    fixed intervals (distance/time/calorie), or one line 'Workout:
+    <work>' for a single piece."""
+    kind = spec.get("kind")
+    if kind == "intervals_variable":
+        return _build_variable_summary_lines(spec["intervals"])
+
+    work_str = _format_work(spec["work"])
+    if kind.startswith("intervals_"):
+        rest_str = _format_time_mmss(spec["rest_s"])
+        return [f"Workout: {spec['count']} x {work_str} / {rest_str} rest"]
+    return [f"Workout: {work_str}"]
 
 
 def _read_stdin_text() -> str:
@@ -341,6 +591,11 @@ def main(argv: list | None = None) -> int:
         help="alias for --llm none (do not fall back to the LLM extractor)",
     )
     parser.add_argument("--explain", action="store_true", help="print a per-press explanation")
+    parser.add_argument(
+        "--summary",
+        action="store_true",
+        help="print a plain-text leg table for the parsed spec before the key line(s)",
+    )
     parser.add_argument(
         "--verbose", action="store_true", help="print spec JSON and source to stderr"
     )
@@ -371,14 +626,25 @@ def main(argv: list | None = None) -> int:
         print(f"source: {result['source']}", file=sys.stderr)
 
     print(result["title"])
+
+    if args.summary:
+        for line in _build_summary_lines(result["spec"]):
+            print(line)
+        print()
+
     for line in result["lines"]:
         print(line)
 
     if args.explain:
+        spec_kind = result["spec"].get("kind")
         for label, trace in result["explains"]:
             if len(result["explains"]) > 1:
                 print(f"{label}:")
-            for line in _format_explain(trace):
+            if spec_kind == "intervals_variable":
+                formatted = _format_explain_legs(trace, result["spec"])
+            else:
+                formatted = _format_explain(trace)
+            for line in formatted:
                 print(line)
 
     return 0

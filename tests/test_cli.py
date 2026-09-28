@@ -380,6 +380,131 @@ class MonitorFlagCliTest(unittest.TestCase):
         self.assertEqual(err, "")
 
 
+class SummaryFlagCliTest(unittest.TestCase):
+    """--summary CLI behaviour (leg table before the key line(s)) and
+    --explain's leg-range collapsing for intervals_variable workouts."""
+
+    SESSION_TEXT = "7 min warm-up, 10 x 1 min hard / 1 min light, 3 min cool-down"
+    # Concept2 notation for SESSION_TEXT, verified against gold data by
+    # pm5-7bk.3 (the session matcher) -- MUST NOT change.
+    SESSION_KEYS = "B-4D-6B-4A-B-E-D-6C-E-D-E-D-E-D-E-D-E-D-E-D-E-D-E-D-E-D-E-D-2B-2E"
+
+    # Captured from HEAD (before this bead's changes) with:
+    #   pm5keys "8 x 500m, 2 minutes rest" --no-llm --explain
+    # This is a fixed-interval (not intervals_variable) workout, so
+    # --explain's output for it must be byte-for-byte unchanged by the
+    # leg-collapsing added here.
+    FIXED_500M_EXPLAIN_GOLD = [
+        "8 x 500m, 2 minutes rest",
+        "PM5: B-2D-5A-2B-E",
+        "B    Main Menu          : Select Workout",
+        "D    Select Workout     : New Workout",
+        "D    New Workout        : Intervals",
+        "A    Intervals          : Distance",
+        "4xA  Intervals: Distance: cursor right to rest minutes",
+        "2xB  Intervals: Distance: rest minutes +2 (now 2)",
+        "E    Intervals: Distance: confirm",
+    ]
+
+    def _run_main(self, argv, stdin_text=None):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with mock.patch("sys.stdout", stdout), mock.patch("sys.stderr", stderr):
+            if stdin_text is not None:
+                with mock.patch("sys.stdin", io.StringIO(stdin_text)):
+                    code = cli.main(argv)
+            else:
+                code = cli.main(argv)
+        return code, stdout.getvalue(), stderr.getvalue()
+
+    def test_summary_table_for_reference_session(self):
+        code, out, err = self._run_main([self.SESSION_TEXT, "--no-llm", "--summary"])
+        self.assertEqual(code, 0)
+        lines = out.splitlines()
+        self.assertEqual(
+            lines,
+            [
+                self.SESSION_TEXT,
+                "Workout (31:00, 12 legs)",
+                "1      7:00      rest 1:00",
+                "2-11   1:00      rest 1:00   (x10)",
+                "12     3:00      —",
+                "",
+                f"PM5: {self.SESSION_KEYS}",
+            ],
+        )
+
+    def test_explain_collapses_repeated_legs_into_one_9x_line(self):
+        code, out, err = self._run_main([self.SESSION_TEXT, "--no-llm", "--explain"])
+        self.assertEqual(code, 0)
+        lines = out.splitlines()
+        # PM5 key line itself must be unchanged.
+        self.assertEqual(lines[1], f"PM5: {self.SESSION_KEYS}")
+
+        explain_lines = lines[2:]
+        collapsed = [line for line in explain_lines if line.startswith("9x")]
+        self.assertEqual(len(collapsed), 1)
+        self.assertIn("legs 3-11", collapsed[0])
+
+        # Today's (pre-collapsing) trace for this workout has ~34
+        # explain lines; the collapsed version must be far below that.
+        self.assertLess(len(explain_lines), 20)
+
+    def test_explain_byte_identical_for_fixed_interval_workout(self):
+        code, out, err = self._run_main(["8 x 500m, 2 minutes rest", "--no-llm", "--explain"])
+        self.assertEqual(code, 0)
+        self.assertEqual(out.splitlines(), self.FIXED_500M_EXPLAIN_GOLD)
+
+    def test_summary_one_line_for_fixed_intervals(self):
+        code, out, err = self._run_main(["8 x 500m, 2 minutes rest", "--no-llm", "--summary"])
+        self.assertEqual(code, 0)
+        lines = out.splitlines()
+        self.assertEqual(
+            lines,
+            [
+                "8 x 500m, 2 minutes rest",
+                "Workout: 8 x 500m / 2:00 rest",
+                "",
+                "PM5: B-2D-5A-2B-E",
+            ],
+        )
+
+    def test_summary_one_line_for_single(self):
+        code, out, err = self._run_main(["2000m", "--no-llm", "--summary"])
+        self.assertEqual(code, 0)
+        lines = out.splitlines()
+        self.assertEqual(
+            lines,
+            [
+                "2000m",
+                "Workout: 2000m",
+                "",
+                "PM5: B-D-A-E",
+            ],
+        )
+
+    def test_summary_and_explain_compose_table_then_key_line_then_explain(self):
+        code, out, err = self._run_main(
+            [self.SESSION_TEXT, "--no-llm", "--summary", "--explain"]
+        )
+        self.assertEqual(code, 0)
+        lines = out.splitlines()
+        table_end = lines.index("")
+        self.assertEqual(lines[1], "Workout (31:00, 12 legs)")
+        key_line_idx = table_end + 1
+        self.assertEqual(lines[key_line_idx], f"PM5: {self.SESSION_KEYS}")
+        # explain lines follow the key line.
+        self.assertGreater(len(lines), key_line_idx + 1)
+
+    def test_monitor_both_prints_summary_table_once(self):
+        code, out, err = self._run_main(
+            [self.SESSION_TEXT, "--no-llm", "--summary", "--monitor", "both"]
+        )
+        self.assertEqual(code, 0)
+        lines = out.splitlines()
+        self.assertEqual(sum(1 for line in lines if line.startswith("Workout (")), 1)
+
+
 class FormatExplainTest(unittest.TestCase):
     def test_does_not_collapse_unrelated_same_letter_actions(self):
         # Same press letter, but different screens -- must not collapse.

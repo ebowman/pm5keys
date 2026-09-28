@@ -73,7 +73,8 @@ With no positional argument, the workout text is read from stdin.
 
 | Flag | Meaning |
 |---|---|
-| `--explain` | print a per-press explanation of the PM5 sequence (screen + action for each button) |
+| `--explain` | print a per-press explanation of the PM5 sequence (screen + action for each button). For `intervals_variable` workouts, runs of consecutive legs that program identically, press for press, collapse into one `<n>x ...` summary line covering the leg range |
+| `--summary` | print a plain-text leg table for the parsed spec before the key-sequence line(s) (one row per leg for `intervals_variable`, collapsing consecutive identical legs into a range row; one line for fixed intervals or a single piece), followed by a blank line. Composes with `--explain` (table, then key line(s), then explain) |
 | `--llm {auto,none,anthropic,claude-cli}` | which LLM backend to use when the deterministic rules can't parse the text (default: `auto` — prefers the Anthropic SDK+key, then the `claude` CLI, then disables the fallback) |
 | `--no-llm` | alias for `--llm none`; never fall back to the LLM extractor |
 | `--model MODEL` | LLM model id/alias to pass through to the resolved backend |
