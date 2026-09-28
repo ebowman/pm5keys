@@ -198,7 +198,10 @@ class ExtractSpecTest(unittest.TestCase):
         good_spec = json.dumps(
             {"kind": "single_distance", "work": {"distance_m": 5000}, "notes": ""}
         )
-        with mock.patch("subprocess.run") as run_mock:
+        # Pin the binary so the test does not depend on a real `claude`
+        # being on PATH (it is not on CI runners).
+        env = {"PM5KEYS_CLAUDE_BIN": "/mock/claude"}
+        with mock.patch.dict(os.environ, env), mock.patch("subprocess.run") as run_mock:
             run_mock.return_value = mock.Mock(
                 stdout=json.dumps({"result": good_spec, "is_error": False}),
                 stderr="",
